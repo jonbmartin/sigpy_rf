@@ -36,3 +36,4 @@ Other Methods
    sigpy.alg.PowerMethod
    sigpy.alg.AltMin
    sigpy.alg.AugmentedLagrangianMethod
+   sigpy.alg.GerchbergSaxton
