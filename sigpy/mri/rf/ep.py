@@ -3,10 +3,7 @@
 
 """
 import numpy as np
-import sigpy.mri.rf.trajgrad as trajgrad
-import sigpy.mri.rf.slr as slr
-import sigpy.mri.rf as rf
-import sigpy.plot as pl
+import sigpy as sp
 import matplotlib.pyplot as pyplot
 
 __all__ = ['dz_shutters']
@@ -28,14 +25,14 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
     gz_area = kw[0] / 4257  # z(slice)-gradient area (g-s/cm)
 
     # design trapezoidal gradient
-    [gpos, ramppts] = trajgrad.min_trap_grad(gz_area * (1 + delayTolerance), gzmax, gslew, dt)
+    [gpos, ramppts] = sp.mri.rf.trajgrad.min_trap_grad(gz_area * (1 + delayTolerance), gzmax, gslew, dt)
 
     # plateau sums to desired area remove last point since it is zero and will give two
     # consecutive zeros in total waveform
     gpos = np.delete(gpos, -1, 1)
     nFlyback = 0
     if flyback:  # TODO: test flyback
-        gzFlyback = trajgrad.trap_grad(sum(gpos) * dt, gzmax, gslew, dt)
+        gzFlyback = sp.mri.rf.trajgrad.trap_grad(sum(gpos) * dt, gzmax, gslew, dt)
         gzFlyback = np.delete(gzFlyback, -1, 1)
         gpos = gpos - 1 * gzFlyback
         nFlyback = gzFlyback.size
@@ -43,7 +40,7 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
     Ntz = gpos.size
 
     # design slice-selective subpulse
-    rfSl = np.real(slr.dzrf(np.rint((Ntz - 2 * ramppts + 1) / (1 + delayTolerance)).astype(int)
+    rfSl = np.real(sp.mri.rf.slr.dzrf(np.rint((Ntz - 2 * ramppts + 1) / (1 + delayTolerance)).astype(int)
                             - nFlyback, tbw[0], 'st', 'ls', 0.01, 0.01))  # arb units
     # zero pad rf back to length of plateau if delayTolerance > 0
     if delayTolerance > 0:
@@ -58,7 +55,7 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
     # design the shutter envelope
     if flip == 90:
         if ~cancelAlphaPhs:
-            rfShut = np.real(slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int),
+            rfShut = np.real(sp.mri.rf.slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int),
                                       tbw[1], 'ex', 'ls', 0.01, 0.01))  # radians
         else:
             # TODO: the matlab function does not work
@@ -76,14 +73,14 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
             '''
     elif flip == 180:
         rfShut = np.real(
-            slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int), tbw[1], 'se', 'ls', 0.01,
+            sp.mri.rf.slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int), tbw[1], 'se', 'ls', 0.01,
                      0.01))
         # radians
 
     else:  # small-tip
         if ~cancelAlphaPhs:
             rfShut = np.real(
-                slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int), tbw[1], 'st', 'ls', 0.01
+                sp.mri.rf.slr.dzrf(np.rint(kw[1] * Nshots * dthick[1]).astype(int), tbw[1], 'st', 'ls', 0.01
                          , 0.01))  # arb units
             # scale to target flip
             rfShut = rfShut / np.sum(rfShut) * flip * np.pi / 180  # radians
@@ -147,7 +144,7 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
         gzEP = gzEP[0:gzEP.size - nFlyback]  # last rewinder will be half area
 
     # get the gy blips
-    [gyBlip, _] = trajgrad.trap_grad(1 / (Nshots * dthick[1]) / 4257, gymax, gslew, dt)
+    [gyBlip, _] = sp.mri.rf.trajgrad.trap_grad(1 / (Nshots * dthick[1]) / 4257, gymax, gslew, dt)
     if np.remainder(gyBlip.size, 2):
         gyBlip = np.append(gyBlip, np.zeros((1, 1)))  # add a zero to make it even length
 
@@ -167,12 +164,12 @@ def dz_shutters(Nshots, dt=6.4e-6, extraShotsForOverlap=0, cancelAlphaPhs=0, R=2
     gyEP = np.append(gyEP, np.zeros((1, (gzEP.size - gyEP.size))))
 
     # calculate and add rewinders
-    [gzRew, _] = trajgrad.trap_grad(np.sum(gpos[0: - nFlyback]) * dt / 2, gzmax, gslew, dt)
+    [gzRew, _] = sp.mri.rf.trajgrad.trap_grad(np.sum(gpos[0: - nFlyback]) * dt / 2, gzmax, gslew, dt)
     if ~flyback:
         gzEP = np.append(gzEP, ((-1) ^ np.remainder(rfShut.size, 2)) * gzRew)
     else:
         gzEP = np.append(gzEP, np.negative(gzRew))
-    [gyRew, _] = trajgrad.trap_grad(np.sum(gyBlip) * dt * (rfShut.size - 1) / 2, gymax, gslew, dt)
+    [gyRew, _] = sp.mri.rf.trajgrad.trap_grad(np.sum(gyBlip) * dt * (rfShut.size - 1) / 2, gymax, gslew, dt)
     gyEP = np.append(gyEP, np.negative(gyRew))
 
     # zero pad waveforms to same length
