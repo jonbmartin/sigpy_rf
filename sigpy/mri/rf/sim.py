@@ -6,7 +6,7 @@ from sigpy import backend
 import numpy as np
 import jax.numpy as jnp
 
-__all__ = ['arb_phase_b1sel', 'abrm', 'abrm_nd', 'abrm_hp', 'abrm_ptx']
+__all__ = ['arb_phase_b1sel','arb_b1_phase_sim', 'abrm', 'abrm_nd', 'abrm_hp', 'abrm_ptx']
 
 
 def arb_phase_b1sel_np(rf_op, b1, mx, my, mz, nt):
@@ -14,6 +14,26 @@ def arb_phase_b1sel_np(rf_op, b1, mx, my, mz, nt):
     # rf_op = rfp_abs + rfp_angle
     # nt = jnp.floor(len(rf_op) / 2)
 
+    for tt in range(nt):
+        rf_b1 = rf_op[tt] * b1
+        ca = np.cos(rf_op[nt + tt])
+        sa = np.sin(rf_op[nt + tt])
+
+        cb = np.cos(rf_b1)
+        sb = np.sin(rf_b1)
+
+        mx_new = (ca * ca + sa * sa * cb) * mx + sa * ca * (1 - cb) * my + sa * sb * mz
+        my_new = sa * ca * (1 - cb) * mx + (sa * sa + ca * ca * cb) * my - ca * sb * mz
+        mz_new = - sa * sb * mx + ca * sb * my + cb * mz
+
+        mx = mx_new
+        my = my_new
+        mz = mz_new
+
+    return mx, my, mz
+
+
+def arb_b1_phase_sim(rf_op, b1, mx, my, mz, nt):
     for tt in range(nt):
         rf_b1 = rf_op[tt] * b1
         ca = np.cos(rf_op[nt + tt])
