@@ -11,7 +11,7 @@ __all__ = ['rf_autodiff', 'mxy_loss', 'optcont1d', 'blochsim', 'deriv']
 
 def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0, ):
 
-    err_jac = jax.jacfwd(mxy_loss)
+    err_jac = jax.grad(mxy_loss)
     N = len(rfp)
     nt = np.floor(N / 2).astype(int)
 
@@ -19,14 +19,19 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
         J = np.zeros(N)
         mx, my, mz = sp.mri.rf.arb_b1_phase_sim(rfp, b1, mx0, my0, mz0, nt)
         for ii in range(b1.size):
-            J += err_jac(mx[ii], my[ii], mz[ii], mxd[ii], myd[ii], mzd[ii],
-                          w[ii])
+            J += err_jac(mx[ii], my[ii], mz[ii], mxd[ii], myd[ii], mzd[ii], w[ii])
         rfp -= step * np.array(J)
+        print("Iter #")
 
     return rfp
 
 
 def mxy_loss(mx, my, mz, mxd, myd, mzd, w):
+    return w * ((mx - mxd) ** 2 + (my - myd) ** 2 + (mz - mzd) ** 2)
+
+
+def mxy_loss_long(rfp, b1, mx0, my0, mz0, nt, mxd, myd, mzd, w):
+    mx, my, mz = sp.mri.rf.sim.arb_b1_phase_sim(rfp, b1, mx0, my0, mz0, nt)
     return w * ((mx - mxd) ** 2 + (my - myd) ** 2 + (mz - mzd) ** 2)
 
 
