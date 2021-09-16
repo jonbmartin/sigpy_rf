@@ -1472,15 +1472,14 @@ class NUFFTIII(Linop):
     """NUFFT Type-III linear operator.
 
     Args:
-        icoord (array): Input coordinates, with values [-ishape / 2, ishape / 2]
-        ocoord (array): Output coordinates, with values [-oshape / 2, oshape / 2]
+        ishape (tuple of int): Input shape.
+        icoord (array): Input signal domain coordinates, with values [-ishape / 2, ishape / 2]
+        ocoord (array): Output Fourier domain coordinates, with values [-oshape / 2, oshape / 2]
         oversamp (float): Oversampling factor.
         width (float): Kernel width.
-        n (int): Kernel sampling number.
 
     """
-    def __init__(self, shape, icoord, ocoord, oversamp=1.25, width=4):
-        self.shape = shape
+    def __init__(self, ishape, icoord, ocoord, oversamp=1.25, width=4):
         self.icoord = icoord
         self.ocoord = ocoord
         self.oversamp = oversamp
@@ -1488,21 +1487,21 @@ class NUFFTIII(Linop):
 
         ndim = icoord.shape[-1]
 
-        # todo: enable multi-channel
-        ishape = list(shape[:-ndim]) + list(icoord.shape[:-1])
-        oshape = list(shape[:-ndim]) + list(ocoord.shape[:-1])
+        oshape = list(ishape[:-ndim]) + list(ocoord.shape[:-1])
 
         super().__init__(oshape, ishape)
 
     def _apply(self, input):
         device = backend.get_device(input)
         with device:
+            icoord = backend.to_device(self.icoord, device)
+            ocoord = backend.to_device(self.ocoord, device)
             return fourier.nufftiii(
-                input, self.shape, self.icoord, self.ocoord,
+                input, icoord, ocoord,
                 oversamp=self.oversamp, width=self.width)
 
     def _adjoint_linop(self):
-        return NUFFTIIIAdjoint(self.shape, self.icoord, self.ocoord,
+        return NUFFTIIIAdjoint(self.ishape, self.ocoord, self.icoord,
                             oversamp=self.oversamp, width=self.width)
 
 
@@ -1511,35 +1510,35 @@ class NUFFTIIIAdjoint(Linop):
 
     Args:
         oshape (tuple of int): Output shape
-        coord (array): Coordinates, with values [-ishape / 2, ishape / 2]
+        icoord (array): Input coordinates, with values [-ishape / 2, ishape / 2]
+        ocoord (array): Output coordinates, with values [-oshape / 2, oshape / 2]
         oversamp (float): Oversampling factor.
         width (float): Kernel width.
 
     """
-    def __init__(self, shape, icoord, ocoord, oversamp=1.25, width=4):
-        self.shape = shape
+    def __init__(self, oshape, icoord, ocoord, oversamp=1.25, width=4):
         self.icoord = icoord
         self.ocoord = ocoord
         self.oversamp = oversamp
         self.width = width
 
-        #ndim = coord.shape[-1]
+        ndim = icoord.shape[-1]
 
-        # todo: enable multi-channel
-        ishape = list(icoord.shape[:-1])
-        oshape = list(ocoord.shape[:-1])
+        ishape = list(oshape[:-ndim]) + list(icoord.shape[:-1])
 
         super().__init__(ishape, oshape)
 
     def _apply(self, input):
         device = backend.get_device(input)
         with device:
+            icoord = backend.to_device(self.icoord, device)
+            ocoord = backend.to_device(self.ocoord, device)
             return fourier.nufftiii_adjoint(
-                input, self.shape, self.icoord, self.ocoord,
+                input, icoord, ocoord, 
                 oversamp=self.oversamp, width=self.width)
 
     def _adjoint_linop(self):
-        return NUFFTIII(self.shape, self.icoord, self.ocoord,
+        return NUFFTIII(self.oshape, self.icoord, self.ocoord,
                      oversamp=self.oversamp, width=self.width)
     
 

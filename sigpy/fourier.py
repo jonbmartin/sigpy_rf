@@ -236,14 +236,13 @@ def nufftiii(input, icoord, ocoord, oversamp=1.25, width=4):
     """
     ndim = icoord.shape[-1]
     beta = np.pi * (((width / oversamp) * (oversamp - 0.5))**2 - 0.8)**0.5
-    shape = input.shape[-ndim:]
 
     # oversampled k-shape is oversamp**2 bigger since we want a bigger FOV with denser sampling
-    im_os_shape = _get_oversamp_shape(list(shape), ndim, oversamp)
+    im_os_shape = _get_oversamp_shape(input.shape, ndim, oversamp)
     k_os_shape = _get_oversamp_shape(im_os_shape, ndim, oversamp)
 
     # Grid to oversampled Cartesian grid - C_GNL in Tao et al
-    coord = _scale_coord(icoord, shape, oversamp)
+    coord = _scale_coord(icoord, input.shape, oversamp)
     output = interp.gridding(input, coord, im_os_shape,
                              kernel='kaiser_bessel', width=width, param=beta)
     output /= width**ndim
@@ -257,10 +256,10 @@ def nufftiii(input, icoord, ocoord, oversamp=1.25, width=4):
     # FFT the oversampled grid - F in Tao et al
     output = fft(output, axes=range(-ndim, 0), norm=None)
     # Normalization
-    output /= util.prod(shape[-ndim:])**0.5 
+    output /= util.prod(input.shape[-ndim:])**0.5 
 
     # k-space gridding - C*_NC in Tao et al
-    coord = _scale_coord_squareshift(ocoord, shape, oversamp)
+    coord = _scale_coord_squareshift(ocoord, input.shape, oversamp)
     output = interp.interpolate(
          output, coord, kernel='kaiser_bessel', width=width, param=beta)
     output /= width**ndim
@@ -271,7 +270,7 @@ def nufftiii(input, icoord, ocoord, oversamp=1.25, width=4):
     return output
 
 
-def nufftiii_adjoint(input, icoord, ocoord, oshape, oversamp=1.25, width=4):
+def nufftiii_adjoint(input, icoord, ocoord, oversamp=1.25, width=4):
     """Type III Non-uniform Fast Fourier Transform.
 
     Args:
@@ -287,8 +286,6 @@ def nufftiii_adjoint(input, icoord, ocoord, oshape, oversamp=1.25, width=4):
         ocoord (array): Image domain coordinate array of shape (..., ndim).
             ocoord[..., i] should be scaled to have its range between
             -n_i // 2, and n_i // 2.            
-        oshape (tuple of ints): output shape of the form
-            (..., n_{ndim - 1}, ..., n_1, n_0).
         oversamp (float): oversampling factor.
         width (float): interpolation kernel full-width in terms of
             oversampled grid.
@@ -309,10 +306,10 @@ def nufftiii_adjoint(input, icoord, ocoord, oshape, oversamp=1.25, width=4):
     """
     ndim = icoord.shape[-1]
     beta = np.pi * (((width / oversamp) * (oversamp - 0.5))**2 - 0.8)**0.5
-    oshape = list(oshape)
+    oshape = list(input.shape[:-ndim]) + list(ocoord.shape[:-1])
 
     # oversampled k-shape is oversamp**2 bigger since we want a bigger FOV with denser sampling
-    im_os_shape = _get_oversamp_shape(list(oshape), ndim, oversamp)
+    im_os_shape = _get_oversamp_shape(oshape, ndim, oversamp)
     k_os_shape = _get_oversamp_shape(im_os_shape, ndim, oversamp)
 
     output = input.copy()
@@ -329,8 +326,7 @@ def nufftiii_adjoint(input, icoord, ocoord, oshape, oversamp=1.25, width=4):
     # IFFT the oversampled grid - F* in Tao et al
     output = ifft(output, axes=range(-ndim, 0), norm=None)
     # Normalization
-    output *= util.prod(k_os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
-    #output /= util.prod(oshape[-ndim:])**0.5    
+    output *= util.prod(k_os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5  
     
     # Crop to smaller image grid
     output = util.resize(output, im_os_shape)
