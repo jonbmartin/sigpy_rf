@@ -1526,7 +1526,7 @@ class NUFFTIIIAdjoint(Linop):
 
         ishape = list(oshape[:-ndim]) + list(icoord.shape[:-1])
 
-        super().__init__(ishape, oshape)
+        super().__init__(oshape, ishape)
 
     def _apply(self, input):
         device = backend.get_device(input)
@@ -1538,7 +1538,7 @@ class NUFFTIIIAdjoint(Linop):
                 oversamp=self.oversamp, width=self.width)
 
     def _adjoint_linop(self):
-        return NUFFTIII(self.oshape, self.icoord, self.ocoord,
+        return NUFFTIII(self.oshape, self.ocoord, self.icoord,
                      oversamp=self.oversamp, width=self.width)
     
 
