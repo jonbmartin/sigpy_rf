@@ -306,7 +306,7 @@ def nufftiii_adjoint(input, icoord, ocoord, oversamp=1.25, width=4):
     """
     ndim = icoord.shape[-1]
     beta = np.pi * (((width / oversamp) * (oversamp - 0.5))**2 - 0.8)**0.5
-    oshape = list(input.shape[:-ndim]) + list(ocoord.shape[:-1])
+    oshape = list(input.shape[:-icoord.ndim + 1]) + list(ocoord.shape[:-1])
 
     # oversampled k-shape is oversamp**2 bigger since we want a bigger FOV with denser sampling
     im_os_shape = _get_oversamp_shape(oshape, ndim, oversamp)
