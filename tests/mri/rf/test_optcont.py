@@ -50,73 +50,73 @@ class TestOptcont(unittest.TestCase):
         print('Finish Simulate magnetization profile. Time: {:f}'.format(time.time()-t0))
 
         # Experiment 1: optimize the pulse with its original target profile as sanity check
-        Mxd = np.array(Mxd)
-        Myd = np.array(Myd)
-        Mzd = np.array(Mzd)
+        excute = input("Start experiment 1: optimize the pulse with its original target profile "
+                       "as sanity check (y/n):\n")
+        if excute == 'y':
+            # huge step size to show difference
+            rf_test_1 = optcont.rf_autodiff(full_pulse, b1, Mxd, Myd, Mzd, w, niters=1, step=0.1,
+                                            mx0=0, my0=0, mz0=1.0)
 
-        # huge step size to show difference
-        rf_test_1 = optcont.rf_autodiff(full_pulse, b1, Mxd, Myd, Mzd, w, niters=1, step=0.1,
-                                        mx0=0, my0=0, mz0=1.0)
-        print('Finish sanity check autodiff. Time: {:f}'.format(time.time()-t0))
-
-        # compare results
-        npt.assert_almost_equal(full_pulse, rf_test_1, decimal=2)
-        print('Test passed. Time: {:f}'.format(time.time()-t0))
+            # compare results
+            npt.assert_almost_equal(full_pulse, rf_test_1, decimal=2)
+            print('Test passed. Time: {:f}'.format(time.time()-t0))
 
         # Experiment 2: Generate rf pulse from a pulse with different pass bandwidth and center
-        print("Modify rf pulse start.")
-        pbc = 1.5  # b1 (Gauss)
-        pbw = 0.2  # b1 (Gauss)
-        rfp_bs, rfp_ss, _ = rf.dz_bssel_rf(dt=dt, tb=2, ndes=256, ptype='ex', flip=np.pi / 2,
-                                           pbw=pbw,
-                                           pbc=[pbc], d1e=0.01, d2e=0.01,
-                                           rampfilt=True, bs_offset=5000)
-        full_pulse_shifted = (rfp_bs + rfp_ss) * 2 * np.pi * 4258 * dt  # scaled
-        nt = np.size(full_pulse_shifted)
+        excute = input("Generate rf pulse from a pulse with different pass bandwidth and center"
+                       " (y/n):\n")
+        if excute == 'y':
+            pbc = 1.5  # b1 (Gauss)
+            pbw = 0.2  # b1 (Gauss)
+            rfp_bs, rfp_ss, _ = rf.dz_bssel_rf(dt=dt, tb=2, ndes=256, ptype='ex', flip=np.pi / 2,
+                                               pbw=pbw,
+                                               pbc=[pbc], d1e=0.01, d2e=0.01,
+                                               rampfilt=True, bs_offset=5000)
+            full_pulse_shifted = (rfp_bs + rfp_ss) * 2 * np.pi * 4258 * dt  # scaled
+            nt = np.size(full_pulse_shifted)
 
-        # visualize input pulse magnetization
-        rfp_abs = abs(full_pulse_shifted)
-        rfp_angle = np.angle(full_pulse_shifted)
-        rf_op_test_2_ini = np.append(rfp_abs, rfp_angle)
+            # visualize input pulse magnetization
+            rfp_abs = abs(full_pulse_shifted)
+            rfp_angle = np.angle(full_pulse_shifted)
+            rf_op_test_2_ini = np.append(rfp_abs, rfp_angle)
 
-        Mx_ini = np.zeros(nb1)
-        My_ini = np.zeros(nb1)
-        Mz_ini = np.zeros(nb1)
+            Mx_ini = np.zeros(nb1)
+            My_ini = np.zeros(nb1)
+            Mz_ini = np.zeros(nb1)
 
-        for ii in range(nb1):
-            Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2_ini,
-                                                                             b1[ii], 0, 0, 1.0, nt)
+            for ii in range(nb1):
+                Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2_ini,
+                                                                                 b1[ii], 0, 0, 1.0, nt)
 
-        # optimize test pulse
-        rf_test_2 = optcont.rf_autodiff(full_pulse_shifted, b1, Mxd, Myd, Mzd, w, niters=20,
-                                        step=0.0001,
-                                        mx0=0, my0=0, mz0=1.0)
+            # optimize test pulse
+            rf_test_2 = optcont.rf_autodiff(full_pulse_shifted, b1, Mxd, Myd, Mzd, w, niters=20,
+                                            step=0.0001,
+                                            mx0=0, my0=0, mz0=1.0)
 
-        rfp_abs = abs(rf_test_2)
-        rfp_angle = np.angle(rf_test_2)
-        rf_op_test_2 = np.append(rfp_abs, rfp_angle)
+            rfp_abs = abs(rf_test_2)
+            rfp_angle = np.angle(rf_test_2)
+            rf_op_test_2 = np.append(rfp_abs, rfp_angle)
 
-        # generate magnetization profile with acquired pulse
-        Mxi = np.zeros(nb1)
-        Myi = np.zeros(nb1)
-        Mzi = np.zeros(nb1)
-        for ii in range(nb1):
-            Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2, b1[ii], 0, 0, 1.0,
-                                                                  nt)
+            # generate magnetization profile with acquired pulse
+            Mxi = np.zeros(nb1)
+            Myi = np.zeros(nb1)
+            Mzi = np.zeros(nb1)
+            for ii in range(nb1):
+                Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2, b1[ii], 0, 0, 1.0,
+                                                                      nt)
 
-        # # graphs (temp)
-        # pyplot.figure()
-        # pyplot.plot(np.sqrt(Mxd ** 2 + Myd ** 2))
-        # pyplot.plot(np.sqrt(Mxi ** 2 + Myi ** 2))
-        # pyplot.plot(np.sqrt(Mx_ini ** 2 + My_ini ** 2))
-        # pyplot.show()
+            # # graphs (temp)
+            # pyplot.figure()
+            # pyplot.plot(np.sqrt(Mxd ** 2 + Myd ** 2))
+            # pyplot.plot(np.sqrt(Mxi ** 2 + Myi ** 2))
+            # pyplot.plot(np.sqrt(Mx_ini ** 2 + My_ini ** 2))
+            # pyplot.show()
 
-        # compare results
-        # npt.assert_almost_equal(rf_op, rf_test_1, decimal=2)
-        npt.assert_almost_equal(Mxi, Mxd, decimal=2)
-        npt.assert_almost_equal(Myi, Myd, decimal=2)
-        npt.assert_almost_equal(Mzi, Mzd, decimal=2)
-        print('Test passed. Time: {:f}'.format(time.time()-t0))
+            # compare results
+            # npt.assert_almost_equal(rf_op, rf_test_1, decimal=2)
+            npt.assert_almost_equal(Mxi, Mxd, decimal=2)
+            npt.assert_almost_equal(Myi, Myd, decimal=2)
+            npt.assert_almost_equal(Mzi, Mzd, decimal=2)
+            print('Test passed. Time: {:f}'.format(time.time()-t0))
 
 
 
