@@ -47,7 +47,13 @@ class TestSim(unittest.TestCase):
         Mzd = np.zeros(nb1)
 
         for ii in range(nb1):
-            Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel(rf_op, b1[ii], 0, 0, 1.0, nt)
+            Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0, 0, 1.0,
+                                                                    nt)
+
+        # graphs (temp)
+        pyplot.figure()
+        pyplot.plot(np.sqrt(Mxd ** 2 + Myd ** 2))
+        pyplot.show()
 
         # compare results
         npt.assert_almost_equal(abs(Mxd + 1j * Myd), abs(Mxyfull.flatten()), decimal=2)

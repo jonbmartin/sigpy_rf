@@ -9,55 +9,10 @@ import jax.numpy as jnp
 __all__ = ['bloch_sim_err', 'dinf', 'calc_kbs']
 
 
-def bloch_sim_err_single(alpha):
-    #alpha = rf_op, b1, mx, my, mz, nt, mxd, myd, mzd, w
-    nt = alpha[-5]
-    mx = alpha[-8]
-    my = alpha[-7]
-    mz = alpha[-6]
-    for tt in range(nt):
-        rf_b1 = alpha[tt] * alpha[-9]
-        ca = jnp.cos(alpha[nt + tt])
-        sa = jnp.sin(alpha[nt + tt])
-
-        cb = jnp.cos(rf_b1)
-        sb = jnp.sin(rf_b1)
-
-        mx_new = (ca * ca + sa * sa * cb) * mx + sa * ca * (1 - cb) * my + sa * sb * mz
-        my_new = sa * ca * (1 - cb) * mx + (sa * sa + ca * ca * cb) * my - ca * sb * mz
-        mz_new = - sa * sb * mx + ca * sb * my + cb * mz
-
-        mx = mx_new
-        my = my_new
-        mz = mz_new
-
-    return alpha[-1] * ((mx - alpha[-4]) ** 2 + (my - alpha[-3]) ** 2 + (mz - alpha[-2]) ** 2)
-
-
-
 def bloch_sim_err(rf_op, b1, mx, my, mz, nt, mxd, myd, mzd, w):
     mx, my, mz = sim.arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt)
 
     return w * ((mx - mxd) * (mx - mxd) + (my - myd) * (my - myd) + (mz - mzd) * (mz - mzd))
-
-def bloch_sim_err_combined(rf_op, b1, mx, my, mz, nt, mxd, myd, mzd, w):
-    for tt in range(nt):
-        rf_b1 = rf_op[tt] * b1
-        ca = jnp.cos(rf_op[nt + tt])
-        sa = jnp.sin(rf_op[nt + tt])
-
-        cb = jnp.cos(rf_b1)
-        sb = jnp.sin(rf_b1)
-
-        mx_new = (ca * ca + sa * sa * cb) * mx + sa * ca * (1 - cb) * my + sa * sb * mz
-        my_new = sa * ca * (1 - cb) * mx + (sa * sa + ca * ca * cb) * my - ca * sb * mz
-        mz_new = - sa * sb * mx + ca * sb * my + cb * mz
-
-        mx = mx_new
-        my = my_new
-        mz = mz_new
-
-    return w * ((mx - mxd) ** 2 + (my - myd) ** 2 + (mz - mzd) ** 2)
 
 
 def dinf(d1=0.01, d2=0.01):
