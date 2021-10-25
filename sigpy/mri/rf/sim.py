@@ -58,6 +58,36 @@ def arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt):
     return s.mag[0], s.mag[1], s.mag[2]
 
 
+def arb_phase_b1sel_mxy(rf_op, b1, mx, my, mz, nt):
+    # rfp = rfp_bs + rfp_ss
+    # rf_op = rfp_abs + rfp_angle
+    # nt = jnp.floor(len(rf_op) / 2)
+
+    with loops.Scope() as s:
+        s.mag = jnp.array([mx, my, mz])
+        s.cb = jnp.cos(rf_op[0:nt-1] * b1)
+        s.sb = jnp.sin(rf_op[0:nt-1] * b1)
+        s.ca = jnp.cos(rf_op[nt:-1])
+        s.sa = jnp.sin(rf_op[nt:-1])
+
+        for tt in s.range(nt):
+            mx_new = (s.ca[tt] * s.ca[tt] + s.sa[tt] * s.sa[tt] * s.cb[tt]) * s.mag[0] + s.sa[tt] \
+                     * \
+                     s.ca[tt] * (1 - s.cb[tt]) * s.mag[1] + s.sa[tt] * s.sb[tt] * s.mag[2]
+            my_new = s.sa[tt] * s.ca[tt] * (1 - s.cb[tt]) * s.mag[0] + (
+                        s.sa[tt] * s.sa[tt] + s.ca[tt] * s.ca[tt] * s.cb[tt]) * s.mag[1] - s.ca[
+                         tt] * s.sb[tt] * s.mag[2]
+            mz_new = - s.sa[tt] * s.sb[tt] * s.mag[0] + s.ca[tt] * s.sb[tt] * s.mag[1] + s.cb[tt] * s.mag[2]
+
+            s.mag = s.mag.at[0].set(mx_new)
+            s.mag = s.mag.at[1].set(my_new)
+            s.mag = s.mag.at[2].set(mz_new)
+
+        s.mxy = jnp.sqrt(s.mag[0] ** 2 + s.mag[1] ** 2)
+
+    return s.mxy
+
+
 def arb_phase_b1sel_single_t(amp, phase, b1, mx, my, mz, nt):
     # rfp = rfp_bs + rfp_ss
     # rf_op = rfp_abs + rfp_angle

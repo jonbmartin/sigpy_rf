@@ -15,6 +15,13 @@ def bloch_sim_err(rf_op, b1, mx, my, mz, nt, mxd, myd, mzd, w):
     return w * ((mx - mxd) * (mx - mxd) + (my - myd) * (my - myd) + (mz - mzd) * (mz - mzd))
 
 
+def bloch_sim_err_mxy(rf_op, b1, mx, my, mz, nt, mxyd, w):
+    mxy = sim.arb_phase_b1sel_mxy(rf_op, b1, mx, my, mz, nt)
+    # mx, my, mz = sim.arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt)
+
+    return w * (mxy - mxyd) ** 2
+
+
 def dinf(d1=0.01, d2=0.01):
     """Calculate D infinity for a linear phase filter.
 

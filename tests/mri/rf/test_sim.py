@@ -47,8 +47,7 @@ class TestSim(unittest.TestCase):
         Mzd = np.zeros(nb1)
 
         for ii in range(nb1):
-            Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0, 0, 1.0,
-                                                                    nt)
+            Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0, 0, 1.0, nt)
 
         # graphs (temp)
         pyplot.figure()
@@ -57,6 +56,7 @@ class TestSim(unittest.TestCase):
 
         # compare results
         npt.assert_almost_equal(abs(Mxd + 1j * Myd), abs(Mxyfull.flatten()), decimal=2)
+
 
     def test_abrm(self):
         #  also provides testing of SLR excitation. Check ex profile sim.

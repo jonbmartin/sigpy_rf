@@ -35,6 +35,28 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
     return refined_nda
 
 
+def rf_autodiff_mxy(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
+    err_jac = jax.jacfwd(util.bloch_sim_err_mxy)
+
+    rfp_abs = jnp.absolute(rfp)
+    rfp_angle = jnp.angle(rfp)
+    rf_op = jnp.append(rfp_abs, rfp_angle)
+    N = len(rf_op)
+    nt = jnp.floor(N / 2).astype(int)
+
+    for nn in range(niters):
+        J = np.zeros(N)
+        for ii in range(b1.size):
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxyd[ii], w[ii])
+        rf_op -= step * J
+
+    [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
+    refined = refined_abs * jnp.exp(1j * refined_angle)
+    refined_nda = np.reshape(refined, [1, nt])
+
+    return refined_nda
+
+
 def optcont1d(dthick, N, os, tb, stepsize=0.001, max_iters=1000, d1=0.01,
               d2=0.01, dt=4e-6, conv_tolerance=1e-5):
     r"""1D optimal control pulse designer
