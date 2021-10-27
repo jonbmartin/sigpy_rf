@@ -36,7 +36,7 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
 
 
 def rf_autodiff_mxy(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
-    err_jac = jax.jacfwd(util.bloch_sim_err_mxy)
+    err_jac = jax.jacfwd(util.bloch_sim_err)
 
     rfp_abs = jnp.absolute(rfp)
     rfp_angle = jnp.angle(rfp)
