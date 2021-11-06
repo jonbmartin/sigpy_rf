@@ -80,7 +80,7 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
 
     # repeat design for multiple bands of excitation
     else:
-        rfp = np.zeros((1, np.int(np.ceil(T / dt / 2) * 2)), dtype=complex)
+        rfp = np.zeros((1, (np.ceil(T / dt / 2) * 2).astype('int')), dtype=complex)
         for ii in range(0, len(pbc)):
             upper_b1 = pbc[ii] + pbw / 2
             lower_b1 = pbc[ii] - pbw / 2
@@ -103,8 +103,8 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
             rfp += ex_subpulse / pbc[ii]
 
     # zero-pad it to the same length as bs
-    rfp = np.concatenate([np.zeros((1, np.int(nsw))), rfp,
-                         np.zeros((1, np.int(nsw)))], axis=1)
+    rfp = np.concatenate([np.zeros((1, nsw.astype('int'))), rfp,
+                         np.zeros((1, nsw.astype('int')))], axis=1)
 
     # return the subpulses. User should superimpose bsrf and rfp if desired
     return bsrf, rfp, rw
@@ -136,14 +136,14 @@ def bssel_bs(T, dt, nsw, bs_offset, beta=0.5, kappa=np.arctan(4)):
         """
 
     # build the fermi pulse for the sweeps in and out
-    t = range(np.int(nsw)) / nsw
+    t = range(nsw.astype('int')) / nsw
     dw0 = 2 * np.pi * bs_offset
     sigma = beta / 6
     a = 1 / (1 + np.exp((t-beta)/sigma))
     a = np.fliplr(np.expand_dims(a, 0))
     om = np.expand_dims(dw0 * np.tan(kappa * (t - 1)) / np.tan(kappa), 0)
 
-    n = np.int(np.ceil(T / dt / 2) * 2)  # samples in final pulse, force even
+    n = np.ceil(T / dt / 2).astype('int') * 2  # samples in final pulse, force even
 
     # build the complete BS pulse
     bs_am = np.concatenate([a, np.ones((1, n)), np.fliplr(a)], axis=1)
@@ -154,9 +154,9 @@ def bssel_bs(T, dt, nsw, bs_offset, beta=0.5, kappa=np.arctan(4)):
     bsrf = bs_am * np.exp(1j * dt * 2 * np.pi * np.cumsum(bs_fm))
 
     # build an RF rewinder, half the duration of the BS pulse w/ opposite freq
-    bs_am_rew = np.concatenate([a, np.ones((1, np.int(n / 2))), np.fliplr(a)],
+    bs_am_rew = np.concatenate([a, np.ones((1, (n / 2).astype('int'))), np.fliplr(a)],
                                axis=1)
-    bs_fm_rew = -np.concatenate([-om, np.zeros((1, np.int(n / 2))),
+    bs_fm_rew = -np.concatenate([-om, np.zeros((1, (n / 2).astype('int'))),
                                  -np.fliplr(om)],
                                 axis=1) / 2 / np.pi + bs_offset
     bsrf_rew = bs_am_rew * np.exp(1j * dt * 2 * np.pi * np.cumsum(bs_fm_rew))
@@ -168,7 +168,7 @@ def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/4,
                  pbw=0.25, pbc=1, d1e=0.01, d2e=0.01, rampfilt=True,
                  bs_offset=20000, ss_offset=None):
 
-    n = np.int(np.ceil(T / dt / 2) * 2)  # samples in final pulse, force even
+    n = np.ceil(T / dt / 2).astype('int') * 2  # samples in final pulse, force even
 
     if not rampfilt:
         rfp = slr.dzrf(ndes, tb, ptype, 'ls', d1e, d2e)
@@ -237,7 +237,7 @@ def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/4,
         rfp_modulation = ss_offset
 
     # modulate RF to be centered at the passband. complex modulation => 1 band!
-    t = np.linspace(- np.int(T / dt / 2), np.int(T / dt / 2), np.size(rfp))
+    t = np.linspace(- (T / dt / 2).astype('int'), (T / dt / 2).astype('int'), np.size(rfp))
     rfp = rfp * np.exp(-1j * 2 * np.pi * rfp_modulation * t * dt)
 
     return rfp
@@ -285,7 +285,7 @@ def dz_b1_rf(dt=2e-6, tb=4, ptype='st', flip=np.pi / 6, pbw=0.3,
     pulse_len = tb / b
 
     # calculate number of samples in pulse
-    n = np.int(np.ceil(pulse_len / dt / 2) * 2)
+    n = np.ceil(pulse_len / dt / 2).astype('int') * 2
 
     if pbc == 0:
         # we want passband as close to zero as possible.
@@ -307,7 +307,7 @@ def dz_b1_rf(dt=2e-6, tb=4, ptype='st', flip=np.pi / 6, pbw=0.3,
         ds = np.double(np.abs(ii) > f[2])
 
         # shift the target pattern to minimum center position
-        pbc = np.int(np.ceil((f[2] - f[1]) * n * os / 2 + f[1] * n * os / 2))
+        pbc = (np.ceil((f[2] - f[1]) * n * os / 2 + f[1] * n * os / 2)).astype('int')
         dl = np.roll(d, pbc)
         dr = np.roll(d, -pbc)
         dsl = np.roll(ds, pbc)
@@ -390,7 +390,7 @@ def dz_b1_gslider_rf(dt=2e-6, g=5, tb=12, ptype='st', flip=np.pi / 6,
     pulse_len = tb / b
 
     # calculate number of samples in pulse
-    n = np.int(np.ceil(pulse_len / dt / 2) * 2)
+    n = np.ceil(pulse_len / dt / 2).astype('int') * 2
 
     om = 2 * np.pi * 4257 * pbc  # modulation freq to center profile at pbc
     t = np.arange(0, n) * pulse_len / n - pulse_len / 2
@@ -463,7 +463,7 @@ def dz_b1_hadamard_rf(dt=2e-6, g=8, tb=16, ptype='st', flip=np.pi / 6,
     pulse_len = tb / b
 
     # calculate number of samples in pulse
-    n = np.int(np.ceil(pulse_len / dt / 2) * 2)
+    n = np.ceil(pulse_len / dt / 2).astype('int') * 2
 
     # modulation frequency to center profile at pbc gauss
     om = 2 * np.pi * 4257 * pbc
