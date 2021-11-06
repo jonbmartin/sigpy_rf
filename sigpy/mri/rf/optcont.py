@@ -21,18 +21,44 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
     rf_op = jnp.append(rfp_abs, rfp_angle)
     N = len(rf_op)
     nt = jnp.floor(N / 2).astype(int)
+    loss = np.zeros(niters)
 
     for nn in range(niters):
         J = np.zeros(N)
         for ii in range(b1.size):
             J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxd[ii], myd[ii], mzd[ii], w[ii])
+        loss[nn] = np.sum(J)
         rf_op -= step * J
 
     [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
     refined = refined_abs * jnp.exp(1j * refined_angle)
     refined_nda = np.reshape(refined, [1, nt])
 
-    return refined_nda
+    return refined_nda, loss
+
+
+def rf_autodiff_mz(rfp, b1, mzd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
+    err_jac = jax.jacfwd(util.bloch_sim_err_mz)
+
+    rfp_abs = jnp.absolute(rfp)
+    rfp_angle = jnp.angle(rfp)
+    rf_op = jnp.append(rfp_abs, rfp_angle)
+    N = len(rf_op)
+    nt = jnp.floor(N / 2).astype(int)
+    loss = np.zeros(niters)
+
+    for nn in range(niters):
+        J = np.zeros(N)
+        for ii in range(b1.size):
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mzd[ii], w[ii])
+        loss[nn] = np.sum(J)
+        rf_op -= step * J
+
+    [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
+    refined = refined_abs * jnp.exp(1j * refined_angle)
+    refined_nda = np.reshape(refined, [1, nt])
+
+    return refined_nda, loss
 
 
 def rf_autodiff_mxy(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):

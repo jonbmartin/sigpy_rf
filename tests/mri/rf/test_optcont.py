@@ -7,6 +7,7 @@ from jax import jit
 from sigpy.mri.rf import optcont
 from matplotlib import pyplot
 import sigpy.mri.rf as rf
+import scipy.io as sio
 
 if __name__ == '__main__':
     unittest.main()
@@ -61,7 +62,7 @@ class TestOptcont(unittest.TestCase):
 
             # compare results
             npt.assert_almost_equal(full_pulse, rf_test_1, decimal=2)
-            print('Test passed. Time: {:f}'.format(time.time()-t0))
+            print('Test passed. Time: {:f}'.format(time.time() - t0))
 
         # Experiment 2: Generate rf pulse from a pulse with different pass bandwidth and center
         excute = input("Start experiment 2: Generate rf pulse from a pulse with different pass "
@@ -121,7 +122,8 @@ class TestOptcont(unittest.TestCase):
 
             for ii in range(nb1):
                 Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2_ini,
-                                                                                 b1[ii], 0, 0, 1.0, nt)
+                                                                                 b1[ii], 0, 0, 1.0,
+                                                                                 nt)
 
             # optimize test pulse
             rf_test_2 = optcont.rf_autodiff(full_pulse_shifted, b1, Mxd, Myd, Mzd, w, niters=20,
@@ -137,8 +139,9 @@ class TestOptcont(unittest.TestCase):
             Myi = np.zeros(nb1)
             Mzi = np.zeros(nb1)
             for ii in range(nb1):
-                Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2, b1[ii], 0, 0, 1.0,
-                                                                      nt)
+                Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_2, b1[ii], 0, 0,
+                                                                        1.0,
+                                                                        nt)
 
             # # graphs (temp)
             # pyplot.figure()
@@ -152,19 +155,19 @@ class TestOptcont(unittest.TestCase):
             npt.assert_almost_equal(Mxi, Mxd, decimal=2)
             npt.assert_almost_equal(Myi, Myd, decimal=2)
             npt.assert_almost_equal(Mzi, Mzd, decimal=2)
-            print('Test passed. Time: {:f}'.format(time.time()-t0))
+            print('Test passed. Time: {:f}'.format(time.time() - t0))
 
         # Experiment 3: Generate rf pulse for a large flat pass band
         excute = input("Start experiment 3: Generate rf pulse for a large flat pass band"
-                           " (y/n):\n")
+                       " (y/n):\n")
         if excute == 'y':
             # generate initial pulse
             dt = 1e-6
             b1 = np.arange(0, 1, 0.02)  # gauss, b1 range to sim over
             nb1 = np.size(b1)
-            pbc = b1[np.floor(b1.size/2).astype(int)]  # b1 (Gauss)
-            pbw = b1[-1]/2  # b1 (Gauss)
-            rfp_bs, rfp_ss, _ = rf.dz_bssel_rf(dt=dt, tb=2, ndes=256, ptype='ex', flip=np.pi / 2,
+            pbc = b1[np.floor(b1.size / 2).astype(int)]  # b1 (Gauss)
+            pbw = b1[-1] / 1.5  # b1 (Gauss)
+            rfp_bs, rfp_ss, _ = rf.dz_bssel_rf(dt=dt, tb=2, ndes=256, ptype='st', flip=np.pi / 4,
                                                pbw=pbw,
                                                pbc=[pbc], d1e=0.01, d2e=0.01,
                                                rampfilt=True, bs_offset=5000)
@@ -181,10 +184,11 @@ class TestOptcont(unittest.TestCase):
             Mz_ini = np.zeros(nb1)
 
             for ii in range(nb1):
-                Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0, 0, 1.0,
-                                                                        nt)
+                Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0,
+                                                                                 0, 1.0,
+                                                                                 nt)
             print('Finish setting up initial pulse and profile. Pulse duration: {:f}ms. '
-                  'Time: {:f}'.format(np.size(full_pulse)*dt*1000, (time.time() - t0)))
+                  'Time: {:f}'.format(np.size(full_pulse) * dt * 1000, (time.time() - t0)))
 
             # set up target profile
             # use bir4 to generate target Mx, My and Mz
@@ -209,12 +213,11 @@ class TestOptcont(unittest.TestCase):
 
             for ii in range(nb1):
                 Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0,
-                                                                                 0, 1.0, nt)
+                                                                        0, 1.0, nt)
 
-            w = np.ones(nb1)    # weight
+            w = np.ones(nb1)  # weight
             print('Finish setting up target. Target bir4 duration: {:f}ms. Time: {:f}'.format(
-                n*dt_bir*1000, (time.time() - t0)))
-
+                n * dt_bir * 1000, (time.time() - t0)))
 
             # Mxyd = np.ones(nb1)
             # w = np.append(np.ones(3)*0.5, np.ones(nb1-6))
@@ -225,9 +228,9 @@ class TestOptcont(unittest.TestCase):
             # pyplot.show()
 
             # optimize test pulse
-            rf_test_3 = optcont.rf_autodiff(full_pulse, b1, Mxd, Myd, Mzd, w, niters=20,
-                                            step=0.0001,
-                                            mx0=0, my0=0, mz0=1.0)
+            rf_test_3, loss = optcont.rf_autodiff(full_pulse, b1, Mxd, Myd, Mzd, w, niters=30,
+                                                  step=0.000001,
+                                                  mx0=0, my0=0, mz0=1.0)
 
             # rf_test_3 = optcont.rf_autodiff_mxy(full_pulse, b1, Mxyd, w, niters=1,
             #                                 step=0.0001,
@@ -235,6 +238,7 @@ class TestOptcont(unittest.TestCase):
 
             rfp_abs = abs(rf_test_3)
             rfp_angle = np.angle(rf_test_3)
+            nt = np.size(rfp_abs)
             rf_op_test_3 = np.append(rfp_abs, rfp_angle)
             print('Finish optimization. Time: {:f}'.format(time.time() - t0))
 
@@ -254,18 +258,115 @@ class TestOptcont(unittest.TestCase):
             pyplot.plot(b1, np.sqrt(Mxi ** 2 + Myi ** 2), '-r', label='Mxy')
             pyplot.plot(b1, np.sqrt(Mx_ini ** 2 + My_ini ** 2), '-g', label='Mxy initial')
             pyplot.plot(b1, np.sqrt(Mxd ** 2 + Myd ** 2), '-b', label='Mxy desired')
-            pyplot.plot(b1, Mzi, '-c', label= 'Mz')
+            pyplot.plot(b1, Mzi, '-c', label='Mz')
+            pyplot.legend()
+            pyplot.show()
+
+            pyplot.figure()
+            pyplot.plot(loss, '-c', label='loss')
+            pyplot.legend()
+            pyplot.show()
+
+            pyplot.figure()
+            pyplot.plot(abs(full_pulse).T, '-r', label='rf pulse initial')
+            pyplot.plot(abs(rf_test_3).T, '-g', label='rf pulse final')
+            # pyplot.plot(abs(bsrf).T, '-b', label='bir4 pulse')
             pyplot.legend()
             pyplot.show()
 
             # compare results
             # npt.assert_almost_equal(rf_op, rf_test_1, decimal=2)
             npt.assert_almost_equal(np.sqrt(Mxi ** 2 + Myi ** 2), np.sqrt(Mxd ** 2 + Myd ** 2),
-                                    decimal=2)
+                                    decimal=1)
             print('Test passed. Time: {:f}'.format(time.time() - t0))
 
+        # Experiment 4: Refine an inversion pulse
+        excute = input("Start experiment 4: Refine an inversion pulse"
+                       " (y/n):\n")
+        if excute == 'y':
+            # load test pulse
+            dict = sio.loadmat(
+                '/nas/home/sunh11/inversion_pulse_refinement/inversion_pulse_to_refine.mat')
+            dt = 4e-6
+            b1 = np.squeeze(dict['b1_grid'])  # gauss, b1 range to sim over
+            nb1 = np.size(b1)
+            w = np.squeeze(dict['w'])
+            Mzd = np.squeeze(dict['ideal_mz'])
+            full_pulse = np.squeeze(dict['full_pulse']) * 2 * np.pi * 4258 * dt
 
+            # simulate with target function to generate magnetization profile
+            rfp_abs = abs(full_pulse)
+            rfp_angle = np.angle(full_pulse)
+            nt = np.size(rfp_abs)
+            rf_op = np.append(rfp_abs, rfp_angle)
 
+            Mx_ini = np.zeros(nb1)
+            My_ini = np.zeros(nb1)
+            Mz_ini = np.zeros(nb1)
+
+            for ii in range(nb1):
+                Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0,
+                                                                                 0, 1.0, nt)
+            print('Finish setting up initial pulse and profile. Pulse duration: {:f}ms. '
+                  'Time: {:f}'.format(np.size(full_pulse) * dt * 1000, (time.time() - t0)))
+
+            # optimize test pulse
+            niters = 30
+            step_size = 0.00005
+            rf_test_4, loss = optcont.rf_autodiff_mz(full_pulse, b1, Mzd, w, niters,
+                                                     step_size,
+                                                     mx0=0, my0=0, mz0=1.0)
+
+            rfp_abs = abs(rf_test_4)
+            rfp_angle = np.angle(rf_test_4)
+            nt = np.size(rfp_abs)
+            rf_op_test_4 = np.append(rfp_abs, rfp_angle)
+            print('Finish optimization. Time: {:f}'.format(time.time() - t0))
+
+            # generate magnetization profile with acquired pulse
+            Mxi = np.zeros(nb1)
+            Myi = np.zeros(nb1)
+            Mzi = np.zeros(nb1)
+            for ii in range(nb1):
+                Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_4, b1[ii], 0, 0,
+                                                                        1.0, nt)
+
+            # graphs (temp)
+            pyplot.figure()
+            pyplot.plot(b1, np.sqrt(Mxi ** 2 + Myi ** 2), '-r', label='Mxy')
+            pyplot.plot(b1, np.sqrt(Mx_ini ** 2 + My_ini ** 2), '-g', label='Mxy initial')
+            pyplot.plot(b1, Mzd, '-b', label='Mz desired')
+            pyplot.plot(b1, Mzi, '-c', label='Mz')
+            pyplot.plot(b1, Mz_ini, '-m', label='Mz initial')
+            pyplot.plot(b1, w, '-y', label='weight')
+            pyplot.legend()
+            pyplot.show()
+
+            pyplot.figure()
+            pyplot.plot(loss, '-c', label='loss')
+            pyplot.legend()
+            pyplot.show()
+
+            pyplot.figure()
+            pyplot.plot(abs(full_pulse).T, '-r', label='rf pulse initial')
+            pyplot.plot(abs(rf_test_4).T, '-g', label='rf pulse final')
+            pyplot.legend()
+            pyplot.show()
+
+            # save the pulse
+            excute = input("Save the results? (y/n):\n")
+            if excute == 'y':
+                dict_out = {'Mx_ini': Mx_ini, 'My_ini': My_ini, 'Mz_ini': Mz_ini,
+                            'Mx_fin': Mxi, 'My_fin': Myi, 'Mz_fin': Mzi,
+                            'pulse_ini': full_pulse, 'pulse_ref': rf_test_4,
+                            'niters': niters, 'step_size': step_size,
+                            'weight': w, 'loss': loss}
+                sio.savemat('/nas/home/sunh11/inversion_pulse_refinement/after_refine.mat'
+                            , dict_out)
+
+            # compare results
+            npt.assert_almost_equal(Mzi, Mzd, decimal=1)
+            print('Test passed. Time: {:f}'.format(time.time() - t0))
 
     def test_optcont1d(self):
         print('Test not fully implemented')
