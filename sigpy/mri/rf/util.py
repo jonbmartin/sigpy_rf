@@ -15,6 +15,12 @@ def bloch_sim_err(rf_op, b1, mx, my, mz, nt, mxd, myd, mzd, w):
     return w * ((mx - mxd) * (mx - mxd) + (my - myd) * (my - myd) + (mz - mzd) * (mz - mzd))
 
 
+def bloch_sim_err_mx_my(rf_op, b1, mx, my, mz, nt, mxd, myd, w):
+    mx, my, mz = sim.arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt)
+
+    return w * ((mx - mxd) * (mx - mxd) + (my - myd) * (my - myd))
+
+
 def bloch_sim_err_mz(rf_op, b1, mx, my, mz, nt, mzd, w):
     mx, my, mz = sim.arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt)
 

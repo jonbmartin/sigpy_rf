@@ -24,6 +24,7 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
     loss = np.zeros(niters)
 
     for nn in range(niters):
+        print(f' Iter # {nn}')
         J = np.zeros(N)
         for ii in range(b1.size):
             J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxd[ii], myd[ii], mzd[ii], w[ii])
@@ -37,8 +38,8 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
     return refined_nda, loss
 
 
-def rf_autodiff_mz(rfp, b1, mzd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
-    err_jac = jax.jacfwd(util.bloch_sim_err_mz)
+def rf_autodiff_mx_my(rfp, b1, mxd, myd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
+    err_jac = jax.jacfwd(util.bloch_sim_err_mx_my)
 
     rfp_abs = jnp.absolute(rfp)
     rfp_angle = jnp.angle(rfp)
@@ -50,9 +51,39 @@ def rf_autodiff_mz(rfp, b1, mzd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.
     for nn in range(niters):
         J = np.zeros(N)
         for ii in range(b1.size):
-            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mzd[ii], w[ii])
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxd[ii], myd[ii], w[ii])
         loss[nn] = np.sum(J)
         rf_op -= step * J
+
+    [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
+    refined = refined_abs * jnp.exp(1j * refined_angle)
+    refined_nda = np.reshape(refined, [1, nt])
+
+    return refined_nda, loss
+
+
+def rf_autodiff_mz(rfp, b1, mzd, w, niters=200, step=0.00001, mx0=0, my0=0, mz0=1.0, epsilon=0.01):
+    err_jac = jax.jacfwd(util.bloch_sim_err_mz)
+
+    rfp_abs = jnp.absolute(rfp)
+    rfp_angle = jnp.angle(rfp)
+    rf_op = jnp.append(rfp_abs, rfp_angle)
+    N = len(rf_op)
+    nt = jnp.floor(N / 2).astype(int)
+    loss = np.zeros(niters)
+
+    for nn in range(niters):
+        print(f'iter # {nn}')  # JBM add print statement
+        J = np.zeros(N)
+        for ii in range(b1.size):
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mzd[ii], w[ii])
+        loss[nn] = np.sum(J)
+        print(f'loss = {loss[nn]}')
+        rf_op -= step * J
+        # JBM add convergence criteria assessment
+        if nn > 0:
+            if abs(loss[nn]-loss[nn-1]) < epsilon:
+                break  # JBM converged
 
     [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
     refined = refined_abs * jnp.exp(1j * refined_angle)

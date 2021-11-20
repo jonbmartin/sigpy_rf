@@ -286,7 +286,7 @@ class TestOptcont(unittest.TestCase):
         if excute == 'y':
             # load test pulse
             dict = sio.loadmat(
-                '/nas/home/sunh11/inversion_pulse_refinement/inversion_pulse_to_refine.mat')
+                '/nas/home/sunh11/inversion_pulse_refinement/inversion_pulse_to_refine_PBC1d4PBW0d3.mat')
             dt = 4e-6
             b1 = np.squeeze(dict['b1_grid'])  # gauss, b1 range to sim over
             nb1 = np.size(b1)
@@ -311,8 +311,8 @@ class TestOptcont(unittest.TestCase):
                   'Time: {:f}'.format(np.size(full_pulse) * dt * 1000, (time.time() - t0)))
 
             # optimize test pulse
-            niters = 30
-            step_size = 0.00005
+            niters = 150
+            step_size = 0.00010  # JBM was 0.00005
             rf_test_4, loss = optcont.rf_autodiff_mz(full_pulse, b1, Mzd, w, niters,
                                                      step_size,
                                                      mx0=0, my0=0, mz0=1.0)
@@ -353,20 +353,173 @@ class TestOptcont(unittest.TestCase):
             pyplot.legend()
             pyplot.show()
 
-            # save the pulse
-            excute = input("Save the results? (y/n):\n")
-            if excute == 'y':
-                dict_out = {'Mx_ini': Mx_ini, 'My_ini': My_ini, 'Mz_ini': Mz_ini,
-                            'Mx_fin': Mxi, 'My_fin': Myi, 'Mz_fin': Mzi,
-                            'pulse_ini': full_pulse, 'pulse_ref': rf_test_4,
-                            'niters': niters, 'step_size': step_size,
-                            'weight': w, 'loss': loss}
-                sio.savemat('/nas/home/sunh11/inversion_pulse_refinement/after_refine.mat'
-                            , dict_out)
+            # save the pulse regardless, no prompting
+            # excute = input("Save the results? (y/n):\n")
+            # if excute == 'y':
+            print('Saving Results')
+            dict_out = {'Mx_ini': Mx_ini, 'My_ini': My_ini, 'Mz_ini': Mz_ini,
+                        'Mx_fin': Mxi, 'My_fin': Myi, 'Mz_fin': Mzi,
+                        'pulse_ini': full_pulse, 'pulse_ref': rf_test_4,
+                        'niters': niters, 'step_size': step_size,
+                        'weight': w, 'loss': loss, 'run_time': time.time() - t0}
+            sio.savemat('/nas/home/sunh11/inversion_pulse_refinement'
+                        '/after_refine_50_pbc1d4pbw0d3'
+                        '.mat'
+                        , dict_out)
 
             # compare results
             npt.assert_almost_equal(Mzi, Mzd, decimal=1)
             print('Test passed. Time: {:f}'.format(time.time() - t0))
+
+        # Experiment 5: Generate rf pulse for a large flat pass band (iterative)
+        excute = input("Start experiment 5: Generate rf pulse for a large flat pass band (iters)"
+                       " (y/n):\n")
+        if excute == 'y':
+            excute = input("Start with new pulse? (y/n):\n")
+            if excute == 'y':
+                # generate initial pulse
+                dt = 1e-6
+                b1 = np.arange(0, 1, 0.02)  # gauss, b1 range to sim over
+                nb1 = np.size(b1)
+                pbc = b1[np.floor(b1.size / 2).astype(int)]  # b1 (Gauss)
+                pbw = b1[-1] / 1.5  # b1 (Gauss)
+                rfp_bs, rfp_ss, _ = rf.dz_bssel_rf(dt=dt, tb=2, ndes=256, ptype='st', flip=np.pi / 4,
+                                               pbw=pbw,
+                                               pbc=[pbc], d1e=0.01, d2e=0.01,
+                                               rampfilt=True, bs_offset=5000)
+                full_pulse = (rfp_bs + rfp_ss) * 2 * np.pi * 4258 * dt  # scaled
+
+                # simulate with target function to generate magnetization profile
+                rfp_abs = abs(full_pulse)
+                rfp_angle = np.angle(full_pulse)
+                nt = np.size(rfp_abs)
+                rf_op = np.append(rfp_abs, rfp_angle)
+
+                Mx_ini = np.zeros(nb1)
+                My_ini = np.zeros(nb1)
+                Mz_ini = np.zeros(nb1)
+
+                for ii in range(nb1):
+                    Mx_ini[ii], My_ini[ii], Mz_ini[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0,
+                                                                                 0, 1.0, nt)
+                print('Finish setting up initial pulse and profile. Pulse duration: {:f}ms. '
+                  'Time: {:f}'.format(np.size(full_pulse) * dt * 1000, (time.time() - t0)))
+
+                # set up target
+                Mxyd = np.ones(nb1)
+                Mxd = np.zeros(nb1)
+                Myd = np.zeros(nb1)
+
+                w = np.append(np.zeros(10), np.ones(nb1-10-10))
+                w = np.append(w, np.zeros(10))      # weight
+                niters = 0
+                step_size = 0.00010
+
+            else:
+                # load test pulse
+                name = input("Load previous pulse (file name only, not including .mat):\n")
+                dict = sio.loadmat(
+                    '/nas/home/sunh11/test_pulses/'+name+'.mat')
+                dt = np.squeeze(dict['dt'])
+                b1 = np.squeeze(dict['b1'])  # gauss, b1 range to sim over
+                nb1 = np.size(b1)
+
+                full_pulse = np.squeeze(dict['pulse_fin'])
+                Mx_ini = np.squeeze(dict['Mx_fin'])
+                My_ini = np.squeeze(dict['My_fin'])
+                Mz_ini = np.squeeze(dict['Mz_fin'])
+
+                w = np.squeeze(dict['weight'])
+                Mxd = np.squeeze(dict['Mx_dsr'])
+                Myd = np.squeeze(dict['My_dsr'])
+                Mxyd = np.squeeze(dict['Mxy_dsr'])
+                niters = np.squeeze(dict['niters'])
+                step_size = np.squeeze(dict['step_size'])
+
+            # loop parameters
+            loop_count = 0
+            proceed = 'y'
+            new_iters = 1
+            Mxi = np.zeros(nb1)
+            Myi = np.zeros(nb1)
+            Mzi = np.zeros(nb1)
+            rf_test_5 = full_pulse
+            loss = 0
+
+            while proceed == 'y':
+                # get new iter numbers
+                # new_iters = int(input("Enter the number of new iterations to perform (y/n):\n"))
+
+                # get optimize direction
+                direction = input("Optimize Mx or My? (x/y):\n")
+                if direction == 'x':
+                    Mxd = np.sqrt(Mxyd ** 2 - My_ini ** 2)
+                    Myd = My_ini
+                else:
+                    Myd = np.sqrt(Mxyd**2-Mx_ini**2)
+                    Mxd = Mx_ini
+
+                # optimize test pulse
+                rf_test_5, loss = optcont.rf_autodiff_mx_my(full_pulse, b1, Mxd, Myd, w, new_iters,
+                                                      step_size,
+                                                      mx0=0, my0=0, mz0=1.0)
+
+                rfp_abs = abs(rf_test_5)
+                rfp_angle = np.angle(rf_test_5)
+                nt = np.size(rfp_abs)
+                rf_op_test_5 = np.append(rfp_abs, rfp_angle)
+                print('Finish optimization. Time: {:f}'.format(time.time() - t0))
+
+                # generate magnetization profile with acquired pulse
+                for ii in range(nb1):
+                    Mxi[ii], Myi[ii], Mzi[ii] = rf.sim.arb_phase_b1sel_loop(rf_op_test_5, b1[ii], 0, 0,
+                                                                            1.0, nt)
+
+                # graphs (temp)
+                pyplot.figure()
+                pyplot.plot(b1, np.sqrt(Mxi ** 2 + Myi ** 2), '-r', label='Mxy')
+                pyplot.plot(b1, np.sqrt(Mx_ini ** 2 + My_ini ** 2), '-g', label='Mxy initial')
+                pyplot.plot(b1, np.sqrt(Mxd ** 2 + Myd ** 2), '-b', label='Mxy desired')
+                pyplot.plot(b1, Mzi, '-c', label='Mz')
+                pyplot.legend()
+                pyplot.show()
+
+                pyplot.figure()
+                pyplot.plot(loss, '-c', label='loss')
+                pyplot.legend()
+                pyplot.show()
+
+                pyplot.figure()
+                pyplot.plot(abs(full_pulse).T, '-r', label='rf pulse initial')
+                pyplot.plot(abs(rf_test_5).T, '-g', label='rf pulse final')
+                pyplot.legend()
+                pyplot.show()
+
+                # record loop and prompt for another
+                loop_count += 1
+                proceed = input("Start another loop (y/n):\n")
+
+            # save the pulse regardless
+            # excute = input("Save the results? (y/n):\n")
+            # if excute == 'y':
+            print('Saving Results')
+            dict_out = {'Mx_ini': Mx_ini, 'My_ini': My_ini, 'Mz_ini': Mz_ini,
+                        'Mx_fin': Mxi, 'My_fin': Myi, 'Mz_fin': Mzi,
+                        'Mx_dsr': Mxd, 'My_dsr': Myd, 'Mxy_dsr': Mxyd,
+                        'pulse_ini': full_pulse, 'pulse_fin': rf_test_5,
+                        'niters': niters + new_iters * loop_count, 'step_size': step_size,
+                        'weight': w, 'loss': loss, 'run_time': time.time() - t0,
+                        'dt': dt, 'b1': b1}
+            sio.savemat('/nas/home/sunh11/test_pulses'
+                        '/mxyrefine1119'
+                        '.mat'
+                        , dict_out)
+
+            # # compare results
+            # # npt.assert_almost_equal(rf_op, rf_test_1, decimal=2)
+            # npt.assert_almost_equal(np.sqrt(Mxi ** 2 + Myi ** 2), np.sqrt(Mxd ** 2 + Myd ** 2),
+            #                         decimal=1)
+            # print('Test passed. Time: {:f}'.format(time.time() - t0))
 
     def test_optcont1d(self):
         print('Test not fully implemented')

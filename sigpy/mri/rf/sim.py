@@ -7,7 +7,7 @@ import numpy as np
 import jax.numpy as jnp
 from jax.experimental import loops
 
-__all__ = ['arb_phase_b1sel', 'abrm', 'abrm_nd', 'abrm_hp', 'abrm_ptx']
+__all__ = ['arb_phase_b1sel_loop', 'arb_phase_b1sel', 'abrm', 'abrm_nd', 'abrm_hp', 'abrm_ptx']
 
 
 def arb_phase_b1sel_loop(rf_op, b1, mx, my, mz, nt):
