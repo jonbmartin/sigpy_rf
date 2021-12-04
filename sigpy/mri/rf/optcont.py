@@ -4,6 +4,7 @@
 from sigpy import backend
 from sigpy.mri.rf import slr
 from sigpy.mri.rf import util
+from sigpy.mri.rf import sim
 import numpy as np
 import jax as jax
 import jax.numpy as jnp
@@ -38,22 +39,41 @@ def rf_autodiff(rfp, b1, mxd, myd, mzd, w, niters=5, step=0.00001, mx0=0, my0=0,
     return refined_nda, loss
 
 
-def rf_autodiff_mx_my(rfp, b1, mxd, myd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0):
+def rf_autodiff_mx_my(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz0=1.0,
+                      epsilon=0.01):
     err_jac = jax.jacfwd(util.bloch_sim_err_mx_my)
 
-    rfp_abs = jnp.absolute(rfp)
-    rfp_angle = jnp.angle(rfp)
-    rf_op = jnp.append(rfp_abs, rfp_angle)
+    rfp_abs = np.absolute(rfp)
+    rfp_angle = np.angle(rfp)
+    rf_op = np.append(rfp_abs, rfp_angle)
     N = len(rf_op)
-    nt = jnp.floor(N / 2).astype(int)
+    nt = np.floor(N / 2).astype(int)
     loss = np.zeros(niters)
+    mxi = np.zeros(b1.size)
+    myi = np.zeros(b1.size)
 
     for nn in range(niters):
+        for ii in range(b1.size):
+            mxi[ii], myi[ii] = sim.arb_phase_b1sel_loop(rf_op, b1[ii], mx0, my0, mz0, nt)[0:2]
+        mxd = np.sqrt(mxyd ** 2 - myi ** 2)
+        myd = np.sqrt(mxyd ** 2 - mxi ** 2)
+
         J = np.zeros(N)
         for ii in range(b1.size):
-            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxd[ii], myd[ii], w[ii])
-        loss[nn] = np.sum(J)
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxd[ii], myi[ii], w[ii])
+        loss[nn] += np.sum(abs(J))
         rf_op -= step * J
+
+        J = np.zeros(N)
+        for ii in range(b1.size):
+            J += err_jac(rf_op, b1[ii], mx0, my0, mz0, nt, mxi[ii], myd[ii], w[ii])
+        loss[nn] += np.sum(abs(J))
+        rf_op -= step * J
+
+        # check convergence
+        if nn > 0:
+            if abs(loss[nn]-loss[nn-1]) < epsilon:
+                break
 
     [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
     refined = refined_abs * jnp.exp(1j * refined_angle)
