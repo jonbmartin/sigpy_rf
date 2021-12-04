@@ -55,8 +55,9 @@ def rf_autodiff_mx_my(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz
     for nn in range(niters):
         for ii in range(b1.size):
             mxi[ii], myi[ii] = sim.arb_phase_b1sel_loop(rf_op, b1[ii], mx0, my0, mz0, nt)[0:2]
-        mxd = np.sqrt(mxyd ** 2 - myi ** 2)
-        myd = np.sqrt(mxyd ** 2 - mxi ** 2)
+
+        mxd = np.sqrt(np.clip(mxyd ** 2 - myi ** 2, 0, mxyd ** 2))
+        myd = np.sqrt(np.clip(mxyd ** 2 - mxi ** 2, 0, mxyd ** 2))
 
         J = np.zeros(N)
         for ii in range(b1.size):
@@ -72,7 +73,7 @@ def rf_autodiff_mx_my(rfp, b1, mxyd, w, niters=5, step=0.00001, mx0=0, my0=0, mz
 
         # check convergence
         if nn > 0:
-            if abs(loss[nn]-loss[nn-1]) < epsilon:
+            if abs(loss[nn] - loss[nn - 1]) < epsilon:
                 break
 
     [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
@@ -102,7 +103,7 @@ def rf_autodiff_mz(rfp, b1, mzd, w, niters=200, step=0.00001, mx0=0, my0=0, mz0=
         rf_op -= step * J
         # JBM add convergence criteria assessment
         if nn > 0:
-            if abs(loss[nn]-loss[nn-1]) < epsilon:
+            if abs(loss[nn] - loss[nn - 1]) < epsilon:
                 break  # JBM converged
 
     [refined_abs, refined_angle] = jnp.split(rf_op, [nt])
