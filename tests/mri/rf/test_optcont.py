@@ -588,14 +588,17 @@ class TestOptcont(unittest.TestCase):
             loss = np.squeeze(dict['loss'])
 
             w = np.squeeze(dict['weight'])
-            # w = np.ones(nb1)
+            w = np.ones(nb1)    # to reset w to all ones
             Mxyd = np.squeeze(dict['Mxy_dsr'])
             niters = np.squeeze(dict['niters'])
             step_size = np.squeeze(dict['step_size'])
 
+            print('Finish loading pulse and profile. Pulse duration: {:f}ms. '
+                  'Time: {:f}s.'.format(np.size(full_pulse) * dt * 1000, (time.time() - t0)))
+
         # loop parameters
         proceed = 'y'
-        new_iters = 2
+        new_iters = 10
 
         while proceed == 'y':
             # optimize test pulse
@@ -648,6 +651,49 @@ class TestOptcont(unittest.TestCase):
                     'weight': w, 'loss': loss, 'run_time': run_time + time.time() - t0,
                     'dt': dt, 'b1': b1}
         sio.savemat('/nas/home/sunh11/test_pulses/' + name + '.mat', dict_out)
+
+        # prompt to compare with bir4 pulse
+        excute = input("Compare with bir4 pulse (y/n):\n")
+        if excute == 'y':
+            # set up bir4 pulse
+            n = 1176
+            dt_bir = 4e-6
+            dw0 = 100 * np.pi / dt_bir / n
+            beta = 10
+            kappa = np.arctan(20)
+            flip = np.pi / 4
+            [am_bir, om_bir] = rf.adiabatic.bir4(n, beta, kappa, flip, dw0)
+
+            bsrf = am_bir * np.exp(1j * dt * 2 * np.pi * np.cumsum(om_bir))
+
+            rfp_abs = abs(bsrf)
+            rfp_angle = np.angle(bsrf)
+            nt = np.size(rfp_abs)
+            rf_op = np.append(rfp_abs, rfp_angle)
+
+            Mx_bir4 = np.zeros(nb1)
+            My_bir4 = np.zeros(nb1)
+            Mz_bir4 = np.zeros(nb1)
+
+            for ii in range(nb1):
+                Mx_bir4[ii], My_bir4[ii], Mz_bir4[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0,
+                                                                        0, 1.0, nt)
+
+            print('Finish setting up bir 4 pulse. Target bir4 duration: {:f}ms. Time: {:f}'.format(
+                n * dt_bir * 1000, (time.time() - t0)))
+
+            # graphs (temp)
+            pyplot.figure()
+            pyplot.plot(abs(bsrf).T, '-r', label='bir 4 pulse')
+            pyplot.legend()
+            pyplot.show()
+
+            pyplot.figure()
+            pyplot.plot(b1, np.sqrt(Mxi ** 2 + Myi ** 2), '-r', label='Mxy')
+            pyplot.plot(b1, np.sqrt(Mx_bir4 ** 2 + My_bir4 ** 2), '-g', label='Mxy bir4')
+            pyplot.legend()
+            pyplot.show()
+
 
     def test_optcont1d(self):
         print('Test not fully implemented')
