@@ -4,7 +4,7 @@
 """
 import numpy as np
 from sigpy.mri.rf import slr as slr
-from sigpy.mri.rf.util import dinf
+from sigpy.mri.rf.util import dinf, b12wbs, calc_kbs
 from scipy.interpolate import interp1d
 
 __all__ = ['dz_bssel_rf', 'bssel_bs', 'dz_b1_rf', 'bssel_ex_slr',
@@ -13,7 +13,8 @@ __all__ = ['dz_bssel_rf', 'bssel_bs', 'dz_b1_rf', 'bssel_ex_slr',
 
 def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
                 pbw=0.25, pbc=[1], d1e=0.01, d2e=0.01,
-                rampfilt=True, bs_offset=20000, ss_offset=None):
+                rampfilt=True, bs_offset=20000,
+                fa_correct=True,):
     """Design a math:`B_1^{+}`-selective pulse following J Martin's
     Bloch Siegert method.
 
@@ -30,22 +31,19 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
             implied for other ptypes.
         pbw (float): width of passband in Gauss.
         pbc (list of floats): center of passband(s) in Gauss.
-        n_bands (int): number of bands if multibanding.
-        band_sep (float): band separation if multibanding, in Gauss.
         d1e (float): passband ripple level in :math:`M_0^{-1}`.
         d2e (float): stopband ripple level in :math:`M_0^{-1}`.
         rampfilt (bool): option to directly design the modulated filter, to
             compensate b1 variation across a slice profile.
         bs_offset (float): (Hz) constant offset during pulse.
-        ss_offset (float): (Hz) constant offset for SS. If not specified,
-            designed from other parameters.
-        rewinder (bool): option to add a Bloch-Siegert rewinder.
+        fa_correct (bool): option to apply empirical flip angle correction.
 
     Returns:
-        2-element tuple containing
+        3-element tuple containing
 
-        - **om1** (*array*): AM waveform.
-        - **dom** (*array*): FM waveform (radians/s).
+        - **bsrf** (*array*): complex bloch-siegert gradient waveform.
+        - **rfp** (*array*): complex slice-selecting waveform.
+        - **rw** (*array*): complex bloch-siegert rewinder
 
     References:
         Martin, J., Vaughn, C., Griswold, M., & Grissom, W. (2021).
@@ -53,10 +51,9 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
         Proc. Intl. Soc. Magn. Reson. Med.
     """
 
-    beta = 0.5  # AM waveform parameter for fermi sweeps
-    dw0 = 2 * np.pi * bs_offset  # amplitude of sweep
-    nsw = np.round(500e-6 / dt)  # number of time points in sweeps
-    kappa = np.arctan(4)  # FM waveform parameter
+    beta = 0.5  # AM waveform parameter for fermi sweeps # JBM was 0.5
+    nsw = np.round(1250e-6 / dt)  # number of time points in sweeps
+    kappa = np.arctan(2)  # FM waveform parameter
 
     # calculate bandwidth and pulse duration using lowest PBC of bands. Lower
     # PBC's require a longer pulse, so lowest constrains our pulse length
@@ -64,23 +61,20 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
     lower_b1 = min(pbc) - pbw / 2
 
     # using Ramsey's BS shift equation pre- w_rf >> gam*b1 approximation
-    B = bs_offset*((1+(4258*upper_b1)**2/bs_offset**2)**(1/2)-1) -\
-        bs_offset*((1+(4258*lower_b1)**2/bs_offset**2)**(1/2)-1)
-    # short_rat=1
-    T = (tb / B) * short_rat  # seconds, the entire pulse duration
+    B = b12wbs(bs_offset, upper_b1) - b12wbs(bs_offset,lower_b1)
+    Tex = (tb / B) * short_rat  # seconds, the entire pulse duration
 
     # perform the design of the BS far off resonant pulse
-    bsrf, rw = bssel_bs(T, dt, nsw, bs_offset, beta, kappa)
+    bsrf, rw, phi_bs = bssel_bs(Tex, dt, bs_offset)
 
     # design pulse for number of bands desired
     if len(pbc) == 1:
-        rfp = bssel_ex_slr(T, dt, tb, ndes, ptype, flip, pbw, pbc[0], d1e, d2e,
-                           rampfilt, bs_offset, ss_offset)
-        rfp /= pbc[0]
+        rfp, phi_ex = bssel_ex_slr(Tex, dt, tb, ndes, ptype, flip, pbw, pbc[0],
+                                   d1e, d2e, rampfilt, bs_offset, fa_correct)
 
     # repeat design for multiple bands of excitation
     else:
-        rfp = np.zeros((1, np.int(np.ceil(T / dt / 2) * 2)), dtype=complex)
+        rfp = np.zeros((1, np.int(np.ceil(Tex / dt / 2) * 2)), dtype=complex)
         for ii in range(0, len(pbc)):
             upper_b1 = pbc[ii] + pbw / 2
             lower_b1 = pbc[ii] - pbw / 2
@@ -91,7 +85,7 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
             T_i = tb / B_i  # seconds, the entire pulse duration
             ex_subpulse = bssel_ex_slr(T_i, dt, tb, ndes, ptype, flip, pbw,
                                        pbc[ii], d1e, d2e, rampfilt,
-                                       bs_offset, ss_offset)
+                                       bs_offset)
 
             # zero pad to match the length of the longest pulse
             if ii > 0:
@@ -100,33 +94,30 @@ def dz_bssel_rf(dt=2e-6, tb=4, short_rat=1, ndes=128, ptype='ex', flip=np.pi/4,
                 zp2 = zpad[:, (np.size(zpad))//2:]
 
                 ex_subpulse = np.concatenate([zp1, ex_subpulse, zp2], axis=1)
-            rfp += ex_subpulse / pbc[ii]
+            rfp += ex_subpulse
 
     # zero-pad it to the same length as bs
-    rfp = np.concatenate([np.zeros((1, np.int(nsw))), rfp,
-                         np.zeros((1, np.int(nsw)))], axis=1)
+    nsw = int(np.ceil((np.size(bsrf) - np.size(rfp))/2))
+    rfp = np.concatenate([np.zeros((1, np.int(nsw))), rfp], axis=1)
+    rfp = np.concatenate([rfp,np.zeros((1,np.size(bsrf)-np.size(rfp)))], axis=1)
 
     # return the subpulses. User should superimpose bsrf and rfp if desired
     return bsrf, rfp, rw
 
 
-def bssel_bs(T, dt, nsw, bs_offset, beta=0.5, kappa=np.arctan(4)):
+def bssel_bs(T, dt, bs_offset):
     """Design the Bloch-Siegert shift inducing component pulse for a
      math:`B_1^{+}`-selective pulse following J Martin's Bloch Siegert method.
 
         Args:
             T (float): total pulse duration (s).
             dt (float): hardware sampling dwell time (s).
-            nsw (int): number of time points in sweeps.
             bs_offset (float): constant offset during pulse (Hz).
-            beta (float): parameter adjusting AM sweep width, time dim (s).
-            kappa (float): parameter adjusting AM sweep transition width, time
-                dim (s).
 
         Returns:
             2-element tuple containing
 
-            - **bsrf** (*array*): AM waveform.
+            - **bsrf** (*array*): complex BS pulse.
             - **bsrf_rew** (*array*): FM waveform (radians/s).
 
         References:
@@ -135,78 +126,67 @@ def bssel_bs(T, dt, nsw, bs_offset, beta=0.5, kappa=np.arctan(4)):
             Proc. Intl. Soc. Magn. Reson. Med.
         """
 
-    # build the fermi pulse for the sweeps in and out
-    t = range(np.int(nsw)) / nsw
-    dw0 = 2 * np.pi * bs_offset
-    sigma = beta / 6
-    a = 1 / (1 + np.exp((t-beta)/sigma))
-    a = np.fliplr(np.expand_dims(a, 0))
-    om = np.expand_dims(dw0 * np.tan(kappa * (t - 1)) / np.tan(kappa), 0)
+    a = 0.00006
+    Bth = 0.95
+    t0 = T/2 - a*np.log((1-Bth)/Bth)
+    T_full = 2*t0 +13.81 * a
+    t = np.arange(-T_full/2, T_full/2, dt)
+    bs_am = 1 / (1 + np.exp((np.abs(t)-t0)/a))
+    if np.mod(np.size(bs_am), 2) != 0:
+        bs_am = bs_am[:-1]
 
-    n = np.int(np.ceil(T / dt / 2) * 2)  # samples in final pulse, force even
+    A_half = bs_am[0:int(np.size(bs_am)/2)]
+    gam = 4258
+    k = 0.2
+    t_v = np.arange(dt, T_full/2*dt+dt, dt)
+    om = (gam*A_half)/np.sqrt((1-(gam*A_half*abs(t_v))/k)**(-2)-1)
 
-    # build the complete BS pulse
-    bs_am = np.concatenate([a, np.ones((1, n)), np.fliplr(a)], axis=1)
-
-    bs_fm = np.concatenate([-om, np.zeros((1, n)),
-                            -np.fliplr(om)], axis=1) / 2 / np.pi + bs_offset
+    om -= np.max(abs(om))
+    om = np.expand_dims(om*1,0)
+    bs_fm = np.concatenate([-om, np.fliplr(-om)],axis=1) + bs_offset
+    kbs_bs = calc_kbs(bs_am, bs_fm, T)
 
     bsrf = bs_am * np.exp(1j * dt * 2 * np.pi * np.cumsum(bs_fm))
+    bsrf = np.expand_dims(bsrf,0)
+    phi_bs = np.cumsum((4258*bs_am)**2/(2*bs_fm))
 
-    # build an RF rewinder, half the duration of the BS pulse w/ opposite freq
-    bs_am_rew = np.concatenate([a, np.ones((1, np.int(n / 2))), np.fliplr(a)],
-                               axis=1)
-    bs_fm_rew = -np.concatenate([-om, np.zeros((1, np.int(n / 2))),
-                                 -np.fliplr(om)],
-                                axis=1) / 2 / np.pi + bs_offset
-    bsrf_rew = bs_am_rew * np.exp(1j * dt * 2 * np.pi * np.cumsum(bs_fm_rew))
+    # Build an RF rewinder, same amplitude but shorter duration to produce -0.5
+    # the Kbs. Pull middle samples until duration matched
+    bs_am_rew = np.ndarray.tolist(np.squeeze(bs_am))
+    bs_fm_rew = np.ndarray.tolist(np.squeeze(-bs_fm))
+    kbs_rw = -kbs_bs
+    while abs(kbs_rw) > 0.5 * abs(kbs_bs):
+        mid = len(bs_am_rew)//2
+        bs_am_rew = bs_am_rew[:mid] + bs_am_rew[mid+1:]
+        bs_fm_rew = bs_fm_rew[:mid] + bs_fm_rew[mid+1:]
+        kbs_rw = calc_kbs(bs_am_rew, bs_fm_rew, len(bs_am_rew)*dt)
 
-    return bsrf, bsrf_rew
+    # adjust amplitude to precisely give correct Kbs
+    bs_am_rew = np.array(bs_am_rew) * np.sqrt(abs(kbs_bs/(2*kbs_rw)))
+    kbs_rw = calc_kbs(bs_am_rew, bs_fm_rew, len(bs_am_rew) * dt)
+    bsrf_rew = np.array(bs_am_rew) * np.exp(1j * dt * 2 * np.pi * np.cumsum(np.array(bs_fm_rew)))
+    print('RW kbs = {}'.format(kbs_rw))
+
+    return bsrf, bsrf_rew, phi_bs
 
 
-def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/4,
+def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/2,
                  pbw=0.25, pbc=1, d1e=0.01, d2e=0.01, rampfilt=True,
-                 bs_offset=20000, ss_offset=None):
+                 bs_offset=20000, fa_correct=True):
 
     n = np.int(np.ceil(T / dt / 2) * 2)  # samples in final pulse, force even
 
     if not rampfilt:
+        # straightforward SLR design, no ramp
         rfp = slr.dzrf(ndes, tb, ptype, 'ls', d1e, d2e)
-        rfp = np.expand_dims(rfp,0)
+        rfp = np.expand_dims(rfp, 0)
     else:
         # perform a filtered design that compensates the b1 variation across
-        # the slice
-        if ptype == 'st':
-            bsf = 1
-            d1 = d1e
-            d2 = d2e
-            # ratio between slice edges
-            beta_ratio = (pbc + pbw / 2) / (pbc - pbw / 2)
-        elif ptype == 'ex':
-            bsf = np.sqrt(1/2)
-            d1 = np.sqrt(d1e/2)
-            d2 = d2e/np.sqrt(2)
-            # ratio
-            beta_ratio = np.sin(np.pi / 4 * (pbc + pbw / 2) / pbc) / np.sin(np.pi / 4 * (pbc - pbw / 2) / pbc)
-        elif ptype == 'sat':
-            bsf = np.sqrt(1 / 2)
-            d1 = d1e / 2
-            d2 = np.sqrt(d2e)
-            beta_ratio = np.sin(np.pi / 4 * (pbc + pbw / 2) / pbc) / np.sin(np.pi / 4 * (pbc - pbw / 2) / pbc)
-        elif ptype == 'se':
-            raise ValueError('Warning: better to set rampfilt=False for '
-                             '180 pulses')
-        elif ptype == 'inv':
-            raise ValueError('Warning: better to set rampfilt=False for '
-                             '180 pulses')
-        else:
-            raise ValueError('Unknown pulse type. Recognized pulse types are '
-                             'st, ex, se, inv, and sat')
-
-        # perform SLR design
+        # the slice. Here, calc parameter relations
+        bsf, d1, d2 = slr.calc_ripples(ptype, d1e, d2e)
 
         # create a beta that corresponds to a ramp
-        b = slr.dz_ramp_beta(ndes, beta_ratio, tb, d1, d2)
+        b = slr.dz_ramp_beta(ndes, T, ptype, pbc, pbw, bs_offset, tb, d1, d2, dt)
 
         if ptype == 'st':
             rfp = b
@@ -222,25 +202,33 @@ def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/4,
     rfp = rfinterp(trf)
     rfp = rfp * ndes / n
 
-    # TODO: old scaling code. All pulse types require same scaling
-    # # scale for desired flip if ptype 'st'
-    # if ptype == 'st':
-    #     rfp = rfp / np.sum(rfp) * flip / (2 * np.pi * 4258 * dt)  # gauss
-    # else:  # rf is already in radians in other cases
-    #     rfp = rfp / (2 * np.pi * 4258 * dt)
-    rfp = rfp / np.sum(rfp) * flip / (2 * np.pi * 4258 * dt)  # gauss
+    # scale for desired flip if ptype 'st'
+    if ptype == 'st':
+        rfp = rfp / np.sum(rfp) * flip / (2 * np.pi * 4258 * dt)  # gauss
+    else:  # rf is already in radians in other cases
+        rfp = rfp / (2 * np.pi * 4258 * dt)
 
-    # calculate the modulation for the ss, or use a given offset (all Hz)
-    if ss_offset is None:
-        rfp_modulation = bs_offset*((1+(4258*pbc)**2/bs_offset**2)**(1/2)-1)
+    # slice select modulation is middle of upper and lower b1
+    upper_b1 = pbc + pbw / 2
+    lower_b1 = pbc - pbw / 2
+    rfp_modulation = 0.5*(b12wbs(bs_offset, upper_b1) + b12wbs(bs_offset, lower_b1))
+    print(f'SS modulation = {rfp_modulation} Hz')
+
+    # empirical correction factor for scaling
+    if fa_correct:
+
+        scalefact = pbc*(0.3323*np.exp(-0.9655*(rfp_modulation/bs_offset))
+                         + 0.6821*np.exp(-0.02331*(rfp_modulation/bs_offset)))
+        rfp = rfp / scalefact
     else:
-        rfp_modulation = ss_offset
+        rfp = rfp / pbc
 
     # modulate RF to be centered at the passband. complex modulation => 1 band!
     t = np.linspace(- np.int(T / dt / 2), np.int(T / dt / 2), np.size(rfp))
     rfp = rfp * np.exp(-1j * 2 * np.pi * rfp_modulation * t * dt)
 
-    return rfp
+    phi_bs = np.cumsum((4258*np.real(rfp))**2/(2*rfp_modulation))
+    return rfp, phi_bs
 
 
 def dz_b1_rf(dt=2e-6, tb=4, ptype='st', flip=np.pi / 6, pbw=0.3,
