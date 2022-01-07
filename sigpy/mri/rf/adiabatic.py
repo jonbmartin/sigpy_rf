@@ -4,7 +4,8 @@
 """
 import numpy as np
 
-__all__ = ['bir4', 'hypsec', 'wurst', 'goia_wurst', 'adiabatic_bs_fm']
+__all__ = ['bir4', 'hypsec', 'hypsec_n', 'wurst', 'goia_wurst',
+           'adiabatic_bs_fm']
 
 
 def bir4(n, beta, kappa, theta, dw0):
@@ -60,8 +61,9 @@ def hypsec(n=512, beta=800, mu=4.9, dur=0.012):
 
     Args:
         n (int): number of samples (should be a multiple of 4).
-        beta (float): AM waveform parameter.
-        mu (float): a constant, determines amplitude of frequency sweep.
+        beta (float): AM waveform parameter (rad/s).
+        mu (float): a dimensionless constant, determines amplitude of frequency
+            sweep.
         dur (float): pulse time (s).
 
     Returns:
@@ -82,6 +84,38 @@ def hypsec(n=512, beta=800, mu=4.9, dur=0.012):
     om = -mu * beta * np.tanh(beta * t)
 
     return a, om
+
+
+def hypsec_n(n=500, beta=8, a_max=12000, pwr=8):
+    r"""Design a HS-n hyperbolic secant adiabatic pulse.
+
+    Args:
+        n (int): number of samples in the final pulse.
+        beta (float): AM waveform parameter (rad/ms).
+        a_max (float): maximum values of the frequency sweep (Hz).
+        pwr (int): power to exponentiate time by within the
+            hyperbolic sinc.
+
+    Returns:
+        2-element tuple containing
+
+        - **am_sechn** (*array*): AM waveform.
+        - **fm_sechn** (*array*): FM waveform (Hz/ms).
+
+    References:
+        Tannus, A. and Garwood, M. 'Improved performance
+        of frequency-swept pulses using offset-independent
+        adiabaticity'. J. Magn. Reson. A 120, 133-137 (1996).
+     """
+
+    t = 2 * np.arange(-n // 2, n // 2) / n
+    dt = t[1]-t[0]
+
+    am_sechn = np.cosh(beta * t ** pwr) ** -1
+    f2_sechn = np.cumsum(am_sechn ** 2) * dt
+    fm_sechn = -2 * a_max * (f2_sechn / np.max(f2_sechn) - 1 / 2)
+
+    return am_sechn, fm_sechn
 
 
 def wurst(n=512, n_fac=40, bw=40e3, dur=2e-3):
