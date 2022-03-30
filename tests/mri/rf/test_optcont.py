@@ -598,7 +598,7 @@ class TestOptcont(unittest.TestCase):
 
         # loop parameters
         proceed = 'y'
-        new_iters = 10
+        new_iters = 40
 
         while proceed == 'y':
             # optimize test pulse

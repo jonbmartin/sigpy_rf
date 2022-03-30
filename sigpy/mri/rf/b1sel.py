@@ -237,7 +237,7 @@ def bssel_ex_slr(T, dt=2e-6, tb=4, ndes=128, ptype='ex', flip=np.pi/4,
         rfp_modulation = ss_offset
 
     # modulate RF to be centered at the passband. complex modulation => 1 band!
-    t = np.linspace(- (T / dt / 2).astype('int'), (T / dt / 2).astype('int'), np.size(rfp))
+    t = np.linspace(int(-T / dt / 2), int(T / dt / 2), np.size(rfp))
     rfp = rfp * np.exp(-1j * 2 * np.pi * rfp_modulation * t * dt)
 
     return rfp

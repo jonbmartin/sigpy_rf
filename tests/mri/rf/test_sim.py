@@ -17,8 +17,8 @@ class TestSim(unittest.TestCase):
               'temporarily change jnp to np in function for time efficiency.')
 
         # test parameters (can be changed)
-        dt = 1e-6
-        b1 = np.arange(0, 2, 0.01)  # gauss, b1 range to sim over
+        dt = 4e-6
+        b1 = np.arange(0, 2, 0.1)  # gauss, b1 range to sim over
         nb1 = np.size(b1)
         pbc = 1.5  # b1 (Gauss)
         pbw = 0.4  # b1 (Gauss)
@@ -42,17 +42,14 @@ class TestSim(unittest.TestCase):
         nt = np.size(rfp_abs)
         rf_op = np.append(rfp_abs, rfp_angle)
 
+        #
+
+        # a more rigorous version of test that checks the entire Magnetization profile
         Mxd = np.zeros(nb1)
         Myd = np.zeros(nb1)
         Mzd = np.zeros(nb1)
-
         for ii in range(nb1):
             Mxd[ii], Myd[ii], Mzd[ii] = rf.sim.arb_phase_b1sel_loop(rf_op, b1[ii], 0, 0, 1.0, nt)
-
-        # graphs (temp)
-        pyplot.figure()
-        pyplot.plot(np.sqrt(Mxd ** 2 + Myd ** 2))
-        pyplot.show()
 
         # compare results
         npt.assert_almost_equal(abs(Mxd + 1j * Myd), abs(Mxyfull.flatten()), decimal=2)
