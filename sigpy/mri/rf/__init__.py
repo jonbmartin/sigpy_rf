@@ -16,9 +16,19 @@ See in-progress features at `sigpy-rf`_.
 
 """
 from sigpy.mri import linop
-
-from sigpy.mri.rf import adiabatic, b1sel, ep, io, multiband, optcont, ptx,\
-    shim, sim, slr, trajgrad, util
+from sigpy.mri.rf import (
+    adiabatic,
+    b1sel,
+    io,
+    multiband,
+    optcont,
+    ptx,
+    shim,
+    sim,
+    slr,
+    trajgrad,
+    util,
+)
 from sigpy.mri.rf.adiabatic import *  # noqa
 from sigpy.mri.rf.b1sel import *  # noqa
 from sigpy.mri.rf.ep import *  # noqa
@@ -33,7 +43,7 @@ from sigpy.mri.rf.slr import *  # noqa
 from sigpy.mri.rf.trajgrad import *  # noqa
 from sigpy.mri.rf.util import *  # noqa
 
-__all__ = ['linop']
+__all__ = ["linop"]
 __all__.extend(adiabatic.__all__)
 __all__.extend(b1sel.__all__)
 __all__.extend(ep.__all__)

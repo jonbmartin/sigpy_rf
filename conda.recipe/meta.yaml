@@ -1,5 +1,5 @@
 {% set name = "sigpy" %}
-{% set version = "0.1.21" %}
+{% set version = "0.1.25" %}
 
 package:
   name: '{{ name|lower }}'
@@ -10,7 +10,7 @@ source:
 
 requirements:
   host:
-    - python
+    - python {{ python }}
     - setuptools
     - numpy
     - pywavelets
@@ -18,7 +18,7 @@ requirements:
     - scipy
     - tqdm
   run:
-    - python
+    - python {{ python }}
     - numpy
     - pywavelets
     - numba
@@ -28,7 +28,6 @@ requirements:
 test:
   imports:
     - sigpy
-    - sigpy.learn
     - sigpy.mri
 
 about:
