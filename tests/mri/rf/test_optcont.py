@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 from sigpy.mri.rf import optcont
+from sigpy.mri.rf.slr import b2a
 
 if __name__ == '__main__':
     unittest.main()
@@ -17,7 +18,7 @@ class TestOptcont(unittest.TestCase):
         finally:
             dt = 4e-6
             gambar = 4257  # gamma/2/pi, Hz/g
-            [a, b] = rf.optcont.blochsim(pulse, x / (gambar * dt * gmag), gamgdt)
+            [a, b] = optcont.blochsim(pulse, x / (gambar * dt * gmag), gamgdt)
             Mxy = 2 * np.conj(a) * b
 
             pyplot.figure()
