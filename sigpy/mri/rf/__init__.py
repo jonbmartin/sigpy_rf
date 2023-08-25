@@ -28,6 +28,7 @@ from sigpy.mri.rf import (
     slr,
     trajgrad,
     util,
+    verse,
 )
 from sigpy.mri.rf.adiabatic import *  # noqa
 from sigpy.mri.rf.b1sel import *  # noqa
@@ -42,6 +43,7 @@ from sigpy.mri.rf.sim import *  # noqa
 from sigpy.mri.rf.slr import *  # noqa
 from sigpy.mri.rf.trajgrad import *  # noqa
 from sigpy.mri.rf.util import *  # noqa
+from sigpy.mri.rf.verse import *  # noqa
 
 __all__ = ["linop"]
 __all__.extend(adiabatic.__all__)
@@ -56,3 +58,4 @@ __all__.extend(shim.__all__)
 __all__.extend(slr.__all__)
 __all__.extend(trajgrad.__all__)
 __all__.extend(util.__all__)
+__all__.extend(verse._all__)
