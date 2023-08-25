@@ -5,6 +5,8 @@
 import numpy as np
 from scipy.signal import firls, filtfilt
 
+__all__ = ['ss_b1verse']
+
 
 def ss_b1verse(g, rf, b1max, gmax, smax, ts, gamma, slew_penalty=0, dbg=0):
     if len(g) == 1:

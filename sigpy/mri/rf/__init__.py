@@ -19,6 +19,7 @@ from sigpy.mri import linop
 from sigpy.mri.rf import (
     adiabatic,
     b1sel,
+    ep,
     io,
     multiband,
     optcont,
