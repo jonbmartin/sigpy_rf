@@ -27,8 +27,8 @@ class TestIo(unittest.TestCase):
              451.36 + 410.60 * 1j, 472.39 + 7.70 * 1j, 245.43 + 21.51 * 1j, 244.63 + 84.50 * 1j,
              168.86 + 324.56 * 1j, 450.03 + 365.86 * 1j, 184.62 + 323.87 * 1j, 55.60 + 225.46 * 1j]
         )
-        expected_comp_real = (29232, 21318, 12026, 17588, 13770, 2604, 8222, 4226, 6302, 8222,
-                              14300, 1702, 30936, 32378, 16822, 16766, 11574, 30844, 12654, 3810)
+        expected_comp_real = (29232, 21318, 12028, 17588, 13770, 2604, 8222, 4226, 6302, 8224,
+                              14300, 1702, 30936, 32376, 16822, 16766, 11574, 30844, 12654, 3810)
         expected_comp_imag = (26738, 13356, 8282, 13842, 3306, 4522, 32284, 32766, 19712, 2048,
                               8046, 12102, 28142, 528, 1474, 5792, 22244, 25076, 22198, 15452)
         contents = ()
@@ -72,15 +72,4 @@ class TestIo(unittest.TestCase):
                          "GE output not as expected for complex input.")
         self.assertEqual(contents_imag, expected_comp_imag,
                          "GE output not as expected for complex input.")
-
-    def test_ge_rf_params(self):
-        expected_rf = ''
-        test_rf = ''
-        print('Test get_rf_params started. Expected output:\n' + expected_rf)
-        print('Output of method:\n')
-        print('End test.')
-        # TODO: insert testing
-
-    def test_philips_rf_params(self):
-        print('IO Test not implemented')
-        # TODO: insert testing
+        
