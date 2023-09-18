@@ -8,7 +8,7 @@ import numpy as np
 __all__ = ['optcont1d', 'blochsim', 'deriv']
 
 
-def optcont1d(dthick, N, os, tb, stepsize=0.001, max_iters=1000, d1=0.01,
+def optcont1d(dthick, N, os, tb, stepsize=0.0001, max_iters=1000, d1=0.01,
               d2=0.01, dt=4e-6, conv_tolerance=1e-5):
     r"""1D optimal control pulse designer
 
@@ -85,7 +85,7 @@ def optcont1d(dthick, N, os, tb, stepsize=0.001, max_iters=1000, d1=0.01,
         if (cost[ii] - cost[ii + 1]) / cost[ii] < conv_tolerance:
             break
 
-    return gamgdt, pulse
+    return gamgdt, pulse, cost 
 
 
 def blochsim(rf, x, g):
@@ -119,21 +119,14 @@ def blochsim(rf, x, g):
 
             # apply gradient
             if g.ndim > 1:
-                z = xp.exp(-1j * x @ g[mm, :])
+                z = xp.exp(1j / 2 * x @ g[mm, :])
             else:
-                z = xp.exp(-1j * x * g[mm])
-            b = b * z
-
-        # apply total phase accrual
-        if g.ndim > 1:
-            z = xp.exp(1j / 2 * x @ xp.sum(g, 0))
-        else:
-            z = xp.exp(1j / 2 * x * xp.sum(g))
-        a = a * z
-        b = b * z
+                z = xp.exp(1j / 2 * x * g[mm])
+            a = a * z 
+            b = b * xp.conj(z)
 
         return a, b
-    
+
 
 def blochsim_amfm(am, om, x, g):
     r"""1D RF pulse simulation, with interleaved RF AM + (gradient + RF FM) rotations.
@@ -167,18 +160,11 @@ def blochsim_amfm(am, om, x, g):
 
             # apply RF FM and gradient
             if g.ndim > 1:
-                z = xp.exp(-1j * x @ g[mm, :] - 1j * om[mm])
+                z = xp.exp(1j / 2 * x @ g[mm, :] + 1j / 2 * om[mm])
             else:
-                z = xp.exp(-1j * x * g[mm] - 1j * om[mm])
-            b = b * z
-
-        # apply total phase accrual
-        if g.ndim > 1:
-            z = xp.exp(1j / 2 * x @ xp.sum(g, 0) + 1j / 2 * om.sum())
-        else:
-            z = xp.exp(1j / 2 * x * xp.sum(g) + 1j / 2 * om.sum())
-        a = a * z
-        b = b * z
+                z = xp.exp(1j / 2 * x * g[mm] + 1j / 2 * om[mm])
+            a = a * z
+            b = b * xp.conj(z)
 
         return a, b
 
@@ -222,7 +208,7 @@ def deriv(rf, x, g, auxa, auxb, af, bf):
 
             # add gradient blip to backward sim
             ar = ar * z
-            br = br * z
+            br = br * xp.conj(z)
 
             # strip off the curent rf rotation from forward sim
             c = xp.cos(xp.abs(rf[mm]) / 2)
@@ -233,9 +219,9 @@ def deriv(rf, x, g, auxa, auxb, af, bf):
             bf = bt
 
             # calculate derivatives wrt rf[mm]
-            db1 = xp.conj(1j / 2 * br * bf) * auxb
-            db2 = xp.conj(1j / 2 * af) * ar * auxb
-            drf[mm] = xp.sum(db2 + xp.conj(db1))
+            db1 = xp.conj(-1j / 2 * br * bf) * auxb
+            db2 = xp.conj(1j / 2 * af * xp.conj(ar)) * auxb
+            drf[mm] = xp.sum(db2 + db1)
             if auxa is not None:
                 da1 = xp.conj(1j / 2 * bf * ar) * auxa
                 da2 = 1j / 2 * xp.conj(af) * br * auxa
@@ -278,11 +264,11 @@ def deriv_amfm(am, om, x, g, auxa, auxb, af, bf):
         br = xp.zeros(xp.shape(bf), dtype=complex)
 
         for mm in range(xp.size(am) - 1, -1, -1):
-            # calculate gradient blip phase
+            # calculate gradient blip and om phase
             if g.ndim > 1:
-                z = xp.exp(1j / 2 * x @ g[mm, :])
+                z = xp.exp(1j / 2 * x @ g[mm, :] + 1j / 2 * om[mm])
             else:
-                z = xp.exp(1j / 2 * x * g[mm])
+                z = xp.exp(1j / 2 * x * g[mm] + 1j / 2 * om[mm])
 
             # strip off gradient blip from forward sim
             af = af * xp.conj(z)
@@ -300,7 +286,7 @@ def deriv_amfm(am, om, x, g, auxa, auxb, af, bf):
             af = at
             bf = bt
 
-            # calculate derivatives wrt rf[mm]
+            # calculate derivatives wrt am[mm]
             db1 = xp.conj(1j / 2 * br * bf) * auxb
             db2 = xp.conj(1j / 2 * af) * ar * auxb
             drf[mm] = xp.sum(db2 + xp.conj(db1))
